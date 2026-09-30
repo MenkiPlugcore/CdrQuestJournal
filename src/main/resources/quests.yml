@@ -23,3 +23,45 @@ quests:
       - "-10 Reputation"
     expiration:
       - "-15 Reputation"
+
+  fishermans_request:
+    title: "Fisherman's Request"
+    type: "DAILY"
+    giver: "Old Fisherman"
+    time-limit-seconds: 3600
+    description:
+      - "Bantu nelayan memenuhi tangkapan hariannya."
+    objectives:
+      fish:
+        text: "Tangkap ikan"
+        target: 20
+    rewards:
+      - "+10 Reputation"
+      - "Fishing Supply"
+    failure: []
+    expiration:
+      - "Daily attempt consumed"
+
+  sunken_convoy:
+    title: "The Sunken Convoy"
+    type: "LIMITED"
+    giver: "Harbor Captain"
+    time-limit-seconds: 7200
+    description:
+      - "Cari reruntuhan konvoi yang tenggelam."
+      - "Pulihkan muatan penting sebelum event berakhir."
+    objectives:
+      wreckage:
+        text: "Temukan wreckage"
+        target: 1
+      cargo:
+        text: "Pulihkan cargo"
+        target: 8
+    rewards:
+      - "+75 Reputation"
+      - "Ancient Map"
+      - "Rare Item"
+    failure:
+      - "-20 Reputation"
+    expiration:
+      - "-25 Reputation"
