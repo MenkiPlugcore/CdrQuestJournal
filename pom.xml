@@ -6,7 +6,7 @@
 
     <groupId>com.menkiestes</groupId>
     <artifactId>CdrQuestJournal</artifactId>
-    <version>0.9.0</version>
+    <version>0.9.5</version>
     <name>CdrQuestJournal</name>
     <description>BetonQuest journal bridge for MoonSign S2.</description>
 
