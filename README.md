@@ -1,65 +1,65 @@
 # CdrQuestJournal
 
-Quest Journal bridge for MoonSign S2. BetonQuest remains the quest engine/source of truth; CdrQuestJournal handles the physical journal, lifecycle, Citizens quest-giver binding, and safe turn-in transaction state.
+Quest Journal bridge for MoonSign S2. BetonQuest remains the quest engine/source of truth; CdrQuestJournal handles physical journals, lifecycle, Citizens quest-giver binding, safe turn-in transactions, and the player-facing quest book UI.
 
-## v0.4.0 — Safe Turn-In & Reward Delivery
+## v0.5.0 — Quest Journal UI Polish
 
-Turn-in now uses a two-phase transaction so the journal/session is not closed before the external reward chain reports success.
+The physical written book now receives a dedicated renderer instead of relying on the basic core pages.
 
-### Recommended BetonQuest flow
+### UI improvements
+
+- Distinct `STORY`, `DAILY`, and `LIMITED` badges.
+- Cleaner cover page with quest giver, status, and remaining time.
+- Overall progress percentage and progress bar.
+- Objective pages with completion markers and current/target values.
+- Reward preview page.
+- Failure/expiry consequence page.
+- Daily reset / limited-event deadline page.
+- Dedicated `RETURN TO NPC` completion page.
+- More readable item display name + lore in inventory.
+- Fresh rendering on the journal refresh cycle and immediately when the player interacts with the book.
+
+### Crossplay-safe mode
+
+Default configuration uses ASCII-safe symbols so Java and Bedrock do not depend on hover text, clickable components, or uncommon glyphs.
 
 ```yaml
-actions:
-  prepare: cdrjournal_prepare lost_cargo
-  reward_rep: cdrrep_add 25 "QUEST_COMPLETED"
-  reward_items: give iron_ingot:3
-  finalize: cdrjournal_finalize lost_cargo
-  abort: cdrjournal_abort lost_cargo
+journal-ui:
+  enabled: true
+  crossplay-safe: true
+  progress-bar-width: 12
+  objectives-per-page: 4
+  show-accepted-at: true
+  show-cycle-info: true
+  item-name: "&6&lQuest Journal &8• &f%quest%"
 ```
 
-Execution order:
+With `crossplay-safe: true`, progress and objectives use forms such as:
+
+```text
+[######------] 50%
+[x] Find the wreck
+[ ] Recover cargo
+```
+
+Setting it to `false` enables the more decorative square/check symbols.
+
+## Safe turn-in flow
+
+The v0.4.0 transaction model remains unchanged:
 
 ```text
 NPC click
   -> cdrjournal_prepare
-  -> external BetonQuest reward actions
+  -> BetonQuest reward actions
   -> cdrjournal_finalize
   -> journal removed
-  -> session closed / lifecycle COMPLETED
+  -> quest committed
 ```
 
-`cdrjournal_prepare` validates the bound Citizens NPC, READY status, physical journal, transaction lock, and free inventory slots. It persists a `PREPARED` transaction before rewards run.
+Pending transactions remain persisted in `pending-turnins.yml`, with recovery and audit logging.
 
-`cdrjournal_finalize` first persists `REWARDED`, then commits quest completion. If the server stops after the REWARDED marker but before the journal/session is closed, the plugin automatically completes the commit when the player rejoins or the recovery tick runs. This prevents the reward chain from being intentionally replayed after a known-success marker.
-
-`cdrjournal_abort` releases a PREPARED transaction when a reward chain is intentionally cancelled before rewards are confirmed.
-
-> External BetonQuest rewards are not part of one database transaction. A crash between an external reward action and `cdrjournal_finalize` is inherently ambiguous for non-idempotent third-party rewards. v0.4.0 narrows that window and provides durable PREPARED/REWARDED recovery, but it cannot make unrelated plugins transactionally atomic.
-
-### Safety controls
-
-```yaml
-turn-in:
-  allow-legacy-action: false
-  prepare-timeout-seconds: 120
-  minimum-free-slots: 1
-  audit-log: true
-  required-free-slots-by-quest: {}
-```
-
-Per-quest slot override example:
-
-```yaml
-turn-in:
-  required-free-slots-by-quest:
-    sunken_convoy: 3
-```
-
-Pending transactions are persisted in `pending-turnins.yml`. Audit entries are appended to `turnin-audit.log`.
-
-The old `cdrjournal_turnin` action remains for compatibility but is disabled by default. Set `turn-in.allow-legacy-action: true` only if you intentionally accept the old immediate-commit behavior.
-
-## Previous systems
+## Existing systems
 
 - STORY / DAILY / LIMITED lifecycle.
 - Admin-managed LIMITED windows.
@@ -67,6 +67,7 @@ The old `cdrjournal_turnin` action remains for compatibility but is disabled by 
 - Protected player-bound written journals.
 - Citizens NPC giver binding and `cdrjournal_correct_npc`.
 - NPC-only accept/turn-in flow.
+- Safe PREPARED / REWARDED / COMMITTED turn-in transactions.
 - BetonQuest 3.x custom actions/conditions.
 
 ## Build
@@ -77,7 +78,7 @@ Requirements: JDK 21 and Maven 3.9+.
 mvn clean package
 ```
 
-Output: `target/CdrQuestJournal-0.4.0.jar`.
+Output: `target/CdrQuestJournal-0.5.0.jar`.
 
 Target: Paper 1.21.11, BetonQuest 3.2.0, Citizens API 2.0.44-SNAPSHOT.
 
