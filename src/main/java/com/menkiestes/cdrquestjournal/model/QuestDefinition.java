@@ -16,7 +16,9 @@ public record QuestDefinition(
         List<String> expiration,
         boolean storyRepeatable,
         List<String> requiresAll,
-        List<String> requiresAny
+        List<String> requiresAny,
+        boolean abandonAllowed,
+        long cooldownSeconds
 ) {
     public QuestDefinition {
         if (id == null || id.isBlank()) throw new IllegalArgumentException("quest id cannot be blank");
@@ -31,6 +33,7 @@ public record QuestDefinition(
         expiration = expiration == null ? List.of() : List.copyOf(expiration);
         requiresAll = normalize(requiresAll);
         requiresAny = normalize(requiresAny);
+        cooldownSeconds = Math.max(0L, cooldownSeconds);
     }
 
     private static List<String> normalize(List<String> ids) {
