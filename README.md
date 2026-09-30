@@ -1,80 +1,73 @@
 # CdrQuestJournal
 
-Quest Journal bridge for MoonSign S2. BetonQuest remains the quest engine/source of truth; CdrQuestJournal provides the physical journal, persistent progress display, lifecycle timers, protected quest books, and Citizens NPC turn-in flow.
+Quest Journal bridge for MoonSign S2. BetonQuest remains the quest engine/source of truth; CdrQuestJournal handles the physical journal, lifecycle, Citizens quest-giver binding, and safe turn-in transaction state.
 
-## v0.3.0 — NPC Quest Turn-In & Quest Giver Binding
+## v0.4.0 — Safe Turn-In & Reward Delivery
 
-### Citizens NPC binding
+Turn-in now uses a two-phase transaction so the journal/session is not closed before the external reward chain reports success.
 
-Every quest can be bound to a specific Citizens NPC. With the default configuration, both accepting and turning in a quest must happen through that same NPC.
-
-Admin flow:
-
-```text
-1. Look directly at the Citizens NPC.
-2. /cqj npc bind <questId>
-```
-
-Other commands:
-
-```text
-/cqj npc info <questId>
-/cqj npc unbind <questId>
-```
-
-Bindings are stored in `npc-bindings.yml` using Citizens NPC ID + UUID + display name.
-
-### Secure interaction context
-
-`NPCRightClickEvent` records a short-lived interaction context for the player. `cdrjournal_start` and `cdrjournal_turnin` validate that context before changing quest state. This prevents a quest from being accepted or claimed through a different NPC or unrelated trigger.
-
-Default context lifetime: 60 seconds.
-
-### BetonQuest
-
-Actions remain:
+### Recommended BetonQuest flow
 
 ```yaml
 actions:
-  accept: cdrjournal_start lost_cargo
-  turnin: cdrjournal_turnin lost_cargo
-  fail: cdrjournal_fail lost_cargo
-  expire: cdrjournal_expire lost_cargo
+  prepare: cdrjournal_prepare lost_cargo
+  reward_rep: cdrrep_add 25 "QUEST_COMPLETED"
+  reward_items: give iron_ingot:3
+  finalize: cdrjournal_finalize lost_cargo
+  abort: cdrjournal_abort lost_cargo
 ```
 
-New condition:
+Execution order:
+
+```text
+NPC click
+  -> cdrjournal_prepare
+  -> external BetonQuest reward actions
+  -> cdrjournal_finalize
+  -> journal removed
+  -> session closed / lifecycle COMPLETED
+```
+
+`cdrjournal_prepare` validates the bound Citizens NPC, READY status, physical journal, transaction lock, and free inventory slots. It persists a `PREPARED` transaction before rewards run.
+
+`cdrjournal_finalize` first persists `REWARDED`, then commits quest completion. If the server stops after the REWARDED marker but before the journal/session is closed, the plugin automatically completes the commit when the player rejoins or the recovery tick runs. This prevents the reward chain from being intentionally replayed after a known-success marker.
+
+`cdrjournal_abort` releases a PREPARED transaction when a reward chain is intentionally cancelled before rewards are confirmed.
+
+> External BetonQuest rewards are not part of one database transaction. A crash between an external reward action and `cdrjournal_finalize` is inherently ambiguous for non-idempotent third-party rewards. v0.4.0 narrows that window and provides durable PREPARED/REWARDED recovery, but it cannot make unrelated plugins transactionally atomic.
+
+### Safety controls
 
 ```yaml
-conditions:
-  correct_npc: cdrjournal_correct_npc lost_cargo
+turn-in:
+  allow-legacy-action: false
+  prepare-timeout-seconds: 120
+  minimum-free-slots: 1
+  audit-log: true
+  required-free-slots-by-quest: {}
 ```
 
-A typical NPC conversation can require both:
+Per-quest slot override example:
 
-```text
-cdrjournal_ready lost_cargo
-cdrjournal_correct_npc lost_cargo
+```yaml
+turn-in:
+  required-free-slots-by-quest:
+    sunken_convoy: 3
 ```
 
-before executing `cdrjournal_turnin lost_cargo` and then the BetonQuest reward events such as CdrReputation changes and item rewards.
+Pending transactions are persisted in `pending-turnins.yml`. Audit entries are appended to `turnin-audit.log`.
 
-### Existing v0.2.0 lifecycle
+The old `cdrjournal_turnin` action remains for compatibility but is disabled by default. Set `turn-in.allow-legacy-action: true` only if you intentionally accept the old immediate-commit behavior.
 
-- `STORY`, `DAILY`, and `LIMITED` quest types.
-- Daily reset cycle with configurable timezone/reset time.
-- Admin-managed limited quest start/end windows.
-- Effective deadline uses the earliest player/lifecycle deadline.
-- Daily and limited terminal outcomes persist across restart.
+## Previous systems
 
-### Admin commands
-
-```text
-/cqj reload
-/cqj inspect <player>
-/cqj restore <player> [questId]
-/cqj limited ...
-/cqj npc ...
-```
+- STORY / DAILY / LIMITED lifecycle.
+- Admin-managed LIMITED windows.
+- Persistent objective progress and timers.
+- Protected player-bound written journals.
+- Citizens NPC giver binding and `cdrjournal_correct_npc`.
+- NPC-only accept/turn-in flow.
+- BetonQuest 3.x custom actions/conditions.
 
 ## Build
 
@@ -84,7 +77,7 @@ Requirements: JDK 21 and Maven 3.9+.
 mvn clean package
 ```
 
-Output: `target/CdrQuestJournal-0.3.0.jar`.
+Output: `target/CdrQuestJournal-0.4.0.jar`.
 
 Target: Paper 1.21.11, BetonQuest 3.2.0, Citizens API 2.0.44-SNAPSHOT.
 

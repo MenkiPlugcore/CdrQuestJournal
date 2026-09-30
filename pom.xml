@@ -6,7 +6,7 @@
 
     <groupId>com.menkiestes</groupId>
     <artifactId>CdrQuestJournal</artifactId>
-    <version>0.3.0</version>
+    <version>0.4.0</version>
     <name>CdrQuestJournal</name>
     <description>BetonQuest journal bridge for MoonSign S2.</description>
 
@@ -25,15 +25,9 @@
     </repositories>
 
     <dependencies>
-        <dependency>
-            <groupId>io.papermc.paper</groupId><artifactId>paper-api</artifactId><version>${paper.version}</version><scope>provided</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.betonquest</groupId><artifactId>betonquest</artifactId><version>${betonquest.version}</version><scope>provided</scope>
-        </dependency>
-        <dependency>
-            <groupId>net.citizensnpcs</groupId><artifactId>citizensapi</artifactId><version>${citizens.version}</version><scope>provided</scope>
-        </dependency>
+        <dependency><groupId>io.papermc.paper</groupId><artifactId>paper-api</artifactId><version>${paper.version}</version><scope>provided</scope></dependency>
+        <dependency><groupId>org.betonquest</groupId><artifactId>betonquest</artifactId><version>${betonquest.version}</version><scope>provided</scope></dependency>
+        <dependency><groupId>net.citizensnpcs</groupId><artifactId>citizensapi</artifactId><version>${citizens.version}</version><scope>provided</scope></dependency>
     </dependencies>
 
     <build>

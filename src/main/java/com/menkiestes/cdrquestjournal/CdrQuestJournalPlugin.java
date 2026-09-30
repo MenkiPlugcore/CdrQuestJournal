@@ -8,9 +8,12 @@ import com.menkiestes.cdrquestjournal.listener.JournalProtectionListener;
 import com.menkiestes.cdrquestjournal.service.JournalService;
 import com.menkiestes.cdrquestjournal.service.NpcBindingService;
 import com.menkiestes.cdrquestjournal.service.QuestAvailabilityService;
+import com.menkiestes.cdrquestjournal.service.TurnInAuditLog;
+import com.menkiestes.cdrquestjournal.service.TurnInCoordinator;
 import com.menkiestes.cdrquestjournal.storage.LifecycleStore;
 import com.menkiestes.cdrquestjournal.storage.LimitedScheduleStore;
 import com.menkiestes.cdrquestjournal.storage.SessionStore;
+import com.menkiestes.cdrquestjournal.storage.TurnInTransactionStore;
 import com.menkiestes.cdrquestjournal.util.MessageService;
 import org.bukkit.command.PluginCommand;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -22,6 +25,7 @@ public final class CdrQuestJournalPlugin extends JavaPlugin {
     private JournalService journalService;
     private QuestAvailabilityService availabilityService;
     private NpcBindingService npcBindingService;
+    private TurnInCoordinator turnInCoordinator;
     private BukkitTask refreshTask;
 
     @Override
@@ -40,8 +44,11 @@ public final class CdrQuestJournalPlugin extends JavaPlugin {
 
         SessionStore sessionStore = new SessionStore(this);
         journalService = new JournalService(this, questRegistry, sessionStore, messages, availabilityService);
+        TurnInTransactionStore turnInStore = new TurnInTransactionStore(this);
+        turnInCoordinator = new TurnInCoordinator(this, journalService, npcBindingService, turnInStore,
+                new TurnInAuditLog(this), messages);
 
-        getServer().getPluginManager().registerEvents(new JournalProtectionListener(this, journalService), this);
+        getServer().getPluginManager().registerEvents(new JournalProtectionListener(this, journalService, turnInCoordinator), this);
         getServer().getPluginManager().registerEvents(new CitizensNpcInteractionListener(npcBindingService), this);
 
         JournalAdminCommand adminCommand = new JournalAdminCommand(this, journalService, messages, availabilityService, npcBindingService);
@@ -51,7 +58,7 @@ public final class CdrQuestJournalPlugin extends JavaPlugin {
         command.setTabCompleter(adminCommand);
 
         if (getServer().getPluginManager().getPlugin("BetonQuest") != null) {
-            if (BetonQuestBootstrap.register(this, journalService, npcBindingService)) {
+            if (BetonQuestBootstrap.register(this, journalService, npcBindingService, turnInCoordinator)) {
                 getLogger().info("BetonQuest integration registered.");
             }
         } else {
@@ -60,16 +67,21 @@ public final class CdrQuestJournalPlugin extends JavaPlugin {
 
         startRefreshTask();
         if (getConfig().getBoolean("journal.restore-on-join", true)) {
-            getServer().getOnlinePlayers().forEach(journalService::restorePlayer);
+            getServer().getOnlinePlayers().forEach(player -> {
+                turnInCoordinator.recoverPlayer(player);
+                journalService.restorePlayer(player);
+            });
         }
 
         getLogger().info("Citizens NPC quest giver binding enabled.");
+        getLogger().info("Safe turn-in transaction recovery enabled.");
         getLogger().info("CdrQuestJournal v" + getPluginMeta().getVersion() + " enabled.");
     }
 
     @Override
     public void onDisable() {
         if (refreshTask != null) refreshTask.cancel();
+        if (turnInCoordinator != null) turnInCoordinator.save();
         if (journalService != null) journalService.save();
     }
 
@@ -80,22 +92,26 @@ public final class CdrQuestJournalPlugin extends JavaPlugin {
         availabilityService.reload();
         npcBindingService.reload();
         startRefreshTask();
-        getServer().getOnlinePlayers().forEach(journalService::restorePlayer);
+        getServer().getOnlinePlayers().forEach(player -> {
+            turnInCoordinator.recoverPlayer(player);
+            journalService.restorePlayer(player);
+        });
     }
 
     public QuestRegistry getQuestRegistry() { return questRegistry; }
     public QuestAvailabilityService getAvailabilityService() { return availabilityService; }
     public NpcBindingService getNpcBindingService() { return npcBindingService; }
+    public TurnInCoordinator getTurnInCoordinator() { return turnInCoordinator; }
 
     private void startRefreshTask() {
         if (refreshTask != null) refreshTask.cancel();
         long seconds = Math.max(1L, getConfig().getLong("journal.refresh-seconds", 5L));
         long ticks = seconds * 20L;
-        refreshTask = getServer().getScheduler().runTaskTimer(
-                this,
-                () -> getServer().getOnlinePlayers().forEach(journalService::tickPlayer),
-                ticks,
-                ticks
-        );
+        refreshTask = getServer().getScheduler().runTaskTimer(this, () -> {
+            for (var player : getServer().getOnlinePlayers()) {
+                turnInCoordinator.tickPlayer(player);
+                journalService.tickPlayer(player);
+            }
+        }, ticks, ticks);
     }
 }

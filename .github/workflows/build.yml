@@ -22,5 +22,5 @@ jobs:
       - name: Upload plugin JAR
         uses: actions/upload-artifact@v4
         with:
-          name: CdrQuestJournal-0.3.0
-          path: target/CdrQuestJournal-0.3.0.jar
+          name: CdrQuestJournal-0.4.0
+          path: target/CdrQuestJournal-0.4.0.jar

@@ -15,6 +15,13 @@ npc:
   interaction-context-seconds: 60
   bind-look-distance: 8
 
+turn-in:
+  allow-legacy-action: false
+  prepare-timeout-seconds: 120
+  minimum-free-slots: 1
+  audit-log: true
+  required-free-slots-by-quest: {}
+
 messages:
   prefix: "&8[&6Quest Journal&8] &r"
   accepted: "&aQuest &f%quest% &aditerima. Journal telah diberikan."
@@ -27,7 +34,7 @@ messages:
   ready: "&aSemua objective selesai. Kembali ke &f%giver% &auntuk menyerahkan journal."
   not-ready: "&cQuest ini belum siap diserahkan."
   expired: "&cQuest &f%quest% &ctelah kedaluwarsa."
-  turned-in: "&aJournal &f%quest% &atelah diserahkan."
+  turned-in: "&aJournal &f%quest% &atelah diserahkan dan reward dikonfirmasi."
   failed: "&cQuest &f%quest% &cdinyatakan gagal."
   daily-locked: "&eDaily Quest &f%quest% &esudah digunakan pada cycle ini. Reset berikutnya: &f%reset%"
   limited-not-configured: "&cLimited Quest &f%quest% &cbelum dijadwalkan oleh admin."
@@ -37,8 +44,20 @@ messages:
   npc-not-bound: "&cQuest &f%quest% &cbelum memiliki Quest Giver NPC yang valid."
   npc-click-required: "&eBicara langsung dengan &f%npc% &euntuk melanjutkan quest ini."
   npc-wrong: "&cJournal quest &f%quest% &chanya dapat diproses oleh &f%npc%&c."
+  turnin-prepared: "&eJournal &f%quest% &esedang diproses."
+  turnin-busy: "&eTurn-in quest &f%quest% &esudah sedang diproses."
+  turnin-no-pending: "&cTidak ada transaksi turn-in aktif untuk &f%quest%&c."
+  turnin-space: "&cButuh minimal &f%required% &cslot kosong untuk reward. Saat ini: &f%free%&c."
+  turnin-pending-recovery: "&eReward sudah ditandai selesai, tetapi penutupan quest tertunda. Sistem akan memulihkannya otomatis."
+  turnin-aborted: "&eProses turn-in &f%quest% &edibatalkan. Kamu bisa mencoba lagi."
+  turnin-retry: "&eProses turn-in sebelumnya untuk &f%quest% &etidak selesai. Silakan bicara dengan NPC lagi."
+  turnin-recovered: "&aTurn-in &f%quest% &aberhasil dipulihkan setelah restart/gangguan."
+  turnin-already-rewarded: "&eReward &f%quest% &esudah tercatat; sistem sedang memastikan quest ditutup tanpa reward ulang."
+  turnin-cannot-abort-rewarded: "&cTurn-in &f%quest% &ctidak dapat dibatalkan karena reward sudah dikonfirmasi."
+  journal-restored-turnin: "&eQuest Journal &f%quest% &edipulihkan. Klik NPC sekali lagi untuk menyerahkannya."
+  legacy-turnin-disabled: "&cAction lama cdrjournal_turnin dinonaktifkan. Gunakan safe transaction prepare/finalize."
   restored: "&aQuest Journal berhasil dipulihkan."
-  reload: "&aKonfigurasi, lifecycle, NPC binding, dan quest definition berhasil dimuat ulang."
+  reload: "&aKonfigurasi, lifecycle, NPC binding, transaction recovery, dan quest definition berhasil dimuat ulang."
   no-active: "&7Player tidak memiliki quest journal aktif."
   inspect-header: "&6Quest aktif milik &f%player%&6:"
   inspect-line: "&8- &f%quest% &8| &7%status% &8| &e%time%"

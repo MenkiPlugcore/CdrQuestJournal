@@ -2,6 +2,7 @@ package com.menkiestes.cdrquestjournal.listener;
 
 import com.menkiestes.cdrquestjournal.CdrQuestJournalPlugin;
 import com.menkiestes.cdrquestjournal.service.JournalService;
+import com.menkiestes.cdrquestjournal.service.TurnInCoordinator;
 import org.bukkit.Material;
 import org.bukkit.entity.ItemFrame;
 import org.bukkit.entity.Player;
@@ -17,13 +18,19 @@ import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerRespawnEvent;
-import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.EquipmentSlot;
+import org.bukkit.inventory.ItemStack;
 
 public final class JournalProtectionListener implements Listener {
     private final CdrQuestJournalPlugin plugin;
     private final JournalService service;
-    public JournalProtectionListener(CdrQuestJournalPlugin plugin, JournalService service) { this.plugin = plugin; this.service = service; }
+    private final TurnInCoordinator turnIns;
+
+    public JournalProtectionListener(CdrQuestJournalPlugin plugin, JournalService service, TurnInCoordinator turnIns) {
+        this.plugin = plugin;
+        this.service = service;
+        this.turnIns = turnIns;
+    }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onDrop(PlayerDropItemEvent event) {
@@ -65,15 +72,35 @@ public final class JournalProtectionListener implements Listener {
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onInteractEntity(PlayerInteractEntityEvent event) {
         if (!protectionEnabled() || !(event.getRightClicked() instanceof ItemFrame)) return;
-        ItemStack hand = event.getHand() == EquipmentSlot.HAND ? event.getPlayer().getInventory().getItemInMainHand() : event.getPlayer().getInventory().getItemInOffHand();
+        ItemStack hand = event.getHand() == EquipmentSlot.HAND
+                ? event.getPlayer().getInventory().getItemInMainHand()
+                : event.getPlayer().getInventory().getItemInOffHand();
         if (service.isJournalOwnedBy(hand, event.getPlayer().getUniqueId())) event.setCancelled(true);
     }
 
     @EventHandler(priority = EventPriority.HIGHEST)
-    public void onDeath(PlayerDeathEvent event) { service.removeJournalFromDrops(event.getDrops(), event.getEntity().getUniqueId()); }
-    @EventHandler public void onRespawn(PlayerRespawnEvent event) { plugin.getServer().getScheduler().runTask(plugin, () -> service.restorePlayer(event.getPlayer())); }
-    @EventHandler public void onJoin(PlayerJoinEvent event) {
-        if (plugin.getConfig().getBoolean("journal.restore-on-join", true)) plugin.getServer().getScheduler().runTask(plugin, () -> service.restorePlayer(event.getPlayer()));
+    public void onDeath(PlayerDeathEvent event) {
+        service.removeJournalFromDrops(event.getDrops(), event.getEntity().getUniqueId());
     }
-    private boolean protectionEnabled() { return plugin.getConfig().getBoolean("journal.protect-item", true); }
+
+    @EventHandler
+    public void onRespawn(PlayerRespawnEvent event) {
+        plugin.getServer().getScheduler().runTask(plugin, () -> recoverAndRestore(event.getPlayer()));
+    }
+
+    @EventHandler
+    public void onJoin(PlayerJoinEvent event) {
+        if (plugin.getConfig().getBoolean("journal.restore-on-join", true)) {
+            plugin.getServer().getScheduler().runTask(plugin, () -> recoverAndRestore(event.getPlayer()));
+        }
+    }
+
+    private void recoverAndRestore(Player player) {
+        turnIns.recoverPlayer(player);
+        service.restorePlayer(player);
+    }
+
+    private boolean protectionEnabled() {
+        return plugin.getConfig().getBoolean("journal.protect-item", true);
+    }
 }

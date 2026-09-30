@@ -44,6 +44,10 @@ public final class JournalSimpleAction implements PlayerAction {
                 }
             }
             case TURN_IN -> {
+                if (!service.legacyTurnInAllowed()) {
+                    service.notifyLegacyTurnInDisabled(player);
+                    throw new QuestException("Legacy cdrjournal_turnin is disabled. Use cdrjournal_prepare -> rewards -> cdrjournal_finalize.");
+                }
                 NpcBindingService.Validation validation = bindings.validateTurnIn(player, id);
                 if (validation != NpcBindingService.Validation.OK) {
                     bindings.notifyValidation(player, id, validation);
