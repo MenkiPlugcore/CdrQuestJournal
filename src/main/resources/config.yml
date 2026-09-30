@@ -5,6 +5,10 @@ journal:
   restore-on-join: true
   protect-item: true
 
+lifecycle:
+  timezone: "Asia/Jakarta"
+  daily-reset: "00:00"
+
 messages:
   prefix: "&8[&6Quest Journal&8] &r"
   accepted: "&aQuest &f%quest% &aditerima. Journal telah diberikan."
@@ -19,8 +23,13 @@ messages:
   expired: "&cQuest &f%quest% &ctelah kedaluwarsa."
   turned-in: "&aJournal &f%quest% &atelah diserahkan."
   failed: "&cQuest &f%quest% &cdinyatakan gagal."
+  daily-locked: "&eDaily Quest &f%quest% &esudah digunakan pada cycle ini. Reset berikutnya: &f%reset%"
+  limited-not-configured: "&cLimited Quest &f%quest% &cbelum dijadwalkan oleh admin."
+  limited-not-started: "&eLimited Quest &f%quest% &ebelum dimulai. Mulai: &f%start%"
+  limited-ended: "&cLimited Quest &f%quest% &csudah berakhir pada &f%end%"
+  limited-locked: "&eKamu sudah menyelesaikan/gagal Limited Quest &f%quest% &epada event ini."
   restored: "&aQuest Journal berhasil dipulihkan."
-  reload: "&aKonfigurasi dan quest definition berhasil dimuat ulang."
+  reload: "&aKonfigurasi, lifecycle, dan quest definition berhasil dimuat ulang."
   no-active: "&7Player tidak memiliki quest journal aktif."
   inspect-header: "&6Quest aktif milik &f%player%&6:"
   inspect-line: "&8- &f%quest% &8| &7%status% &8| &e%time%"
