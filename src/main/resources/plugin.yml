@@ -1,5 +1,5 @@
 name: CdrQuestJournal
-version: '0.1.0'
+version: '0.2.0'
 main: com.menkiestes.cdrquestjournal.CdrQuestJournalPlugin
 api-version: '1.21'
 author: CADERA
@@ -13,7 +13,7 @@ commands:
   cdrjournal:
     aliases: [cqj]
     description: CdrQuestJournal administrator command.
-    usage: /cdrjournal <reload|inspect|restore>
+    usage: /cdrjournal <reload|inspect|restore|limited>
     permission: cdrquestjournal.admin
 
 permissions:
