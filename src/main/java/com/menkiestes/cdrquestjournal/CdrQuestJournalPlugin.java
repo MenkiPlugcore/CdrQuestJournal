@@ -67,7 +67,7 @@ public final class CdrQuestJournalPlugin extends JavaPlugin {
         command.setTabCompleter(adminCommand);
 
         if (getServer().getPluginManager().getPlugin("BetonQuest") != null) {
-            if (BetonQuestBootstrap.register(this, journalService, npcBindingService, turnInCoordinator)) {
+            if (BetonQuestBootstrap.register(this, journalService, npcBindingService, turnInCoordinator, availabilityService)) {
                 getLogger().info("BetonQuest integration registered.");
             }
         } else {
@@ -87,6 +87,7 @@ public final class CdrQuestJournalPlugin extends JavaPlugin {
         getLogger().info("Safe turn-in transaction recovery enabled.");
         getLogger().info("Crossplay-safe polished journal UI enabled.");
         getLogger().info("Quest Admin GUI enabled.");
+        getLogger().info("Persistent story chain progression enabled.");
         getLogger().info("CdrQuestJournal v" + getPluginMeta().getVersion() + " enabled.");
     }
 
