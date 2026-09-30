@@ -11,7 +11,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 
 public final class JournalSimpleAction implements PlayerAction {
-    public enum Mode { START, TURN_IN, FAIL, EXPIRE }
+    public enum Mode { START, TURN_IN, FAIL, EXPIRE, ABANDON }
 
     private final JournalService service;
     private final NpcBindingService bindings;
@@ -61,6 +61,17 @@ public final class JournalSimpleAction implements PlayerAction {
             }
             case EXPIRE -> {
                 if (!service.fail(player, id, true)) throw new QuestException("No active journal found for '" + id + "'.");
+            }
+            case ABANDON -> {
+                NpcBindingService.Validation validation = bindings.validateTurnIn(player, id);
+                if (validation != NpcBindingService.Validation.OK) {
+                    bindings.notifyValidation(player, id, validation);
+                    throw new QuestException("Quest '" + id + "' must be abandoned through its bound Citizens NPC.");
+                }
+                if (!service.abandon(player, id)) {
+                    throw new QuestException("Quest '" + id + "' cannot be abandoned.");
+                }
+                bindings.clearContext(player);
             }
         }
     }
