@@ -1,133 +1,99 @@
 # CdrQuestJournal
 
-`CdrQuestJournal` is the quest-journal layer for MoonSign S2. BetonQuest remains the quest engine; this plugin turns BetonQuest state changes into a protected written-book journal with live objective progress, countdown timers, and NPC turn-in flow.
+Quest Journal bridge for MoonSign S2. BetonQuest remains the quest engine/source of truth; CdrQuestJournal provides the physical journal, persistent progress display, lifecycle timers, protected quest books, and NPC turn-in flow.
 
-## v0.1.0 — BetonQuest Journal Core
+## v0.2.0 — Daily & Limited Quest Lifecycle
 
-Implemented:
+### Quest types
 
-- Paper 1.21.11 / Java 21.
-- Native BetonQuest 3.2.0 integration.
-- Quest definitions in `quests.yml`.
-- One bound written book per active quest.
-- Objective progress with `add` and `set` modes.
-- Automatic `READY` state when all journal objectives reach their targets.
-- Real-time countdown refresh.
-- Local expiration guard: expired journals cannot be turned in.
-- NPC turn-in flow through BetonQuest conditions/actions.
-- Journal removal after successful turn-in/fail/expire.
-- Journal protection against dropping and common container transfers.
-- Journal restoration after respawn/join.
-- Persistent active-session state in `sessions.yml`.
-- Admin-only diagnostics; players never need a command.
-- Compatible with `CdrReputation` v0.2.0 through BetonQuest event chaining.
+- `STORY` — normal quest lifecycle.
+- `DAILY` — one terminal result per daily reset cycle. Completion, failure, and expiry all consume that day's attempt.
+- `LIMITED` — available only inside an admin-managed event window. Completion, failure, and expiry lock the player for that event cycle.
 
-## Architecture
+Default lifecycle timezone is `Asia/Jakarta` and daily reset is `00:00`. Both are configurable in `config.yml`.
+
+### Limited quest scheduling
+
+A quest must use `type: LIMITED` in `quests.yml`. Admins then schedule its live window without editing BetonQuest files:
 
 ```text
-Citizens NPC
-    |
-BetonQuest
-    |
-    +--> CdrQuestJournal
-    |      - book
-    |      - progress
-    |      - timer
-    |      - turn-in state
-    |
-    +--> CdrReputation
-           - reputation reward / penalty
+/cqj limited set <questId> <yyyy-MM-dd_HH:mm> <yyyy-MM-dd_HH:mm>
+/cqj limited end <questId> <yyyy-MM-dd_HH:mm>
+/cqj limited now <questId> <durationHours>
+/cqj limited info <questId>
+/cqj limited clear <questId>
 ```
 
-BetonQuest is the source of truth for quest logic and rewards. `CdrQuestJournal` is the presentation/turn-in layer. Reward text in `quests.yml` is display metadata; the actual reward should still be executed by BetonQuest.
+Example:
 
-## BetonQuest actions
+```text
+/cqj limited set sunken_convoy 2026-09-30_18:00 2026-10-05_23:59
+```
+
+`limited end` can extend or shorten an active event while preserving the event cycle. Active journals automatically follow the updated end time.
+
+### Effective quest deadline
+
+The journal deadline is the earliest applicable deadline:
+
+```text
+min(player quest time limit, daily reset/event end)
+```
+
+If a quest has no per-player time limit, the daily reset or limited event end becomes the deadline.
+
+### BetonQuest integration
+
+Actions:
 
 ```yaml
 actions:
-  journal_start: cdrjournal_start lost_cargo
-  cargo_plus_one: cdrjournal_progress lost_cargo cargo add 1
-  wreck_found: cdrjournal_progress lost_cargo find_wreck set 1
-  journal_turnin: cdrjournal_turnin lost_cargo
-  journal_fail: cdrjournal_fail lost_cargo
-  journal_expire: cdrjournal_expire lost_cargo
+  start_daily: cdrjournal_start fishermans_request
+  start_limited: cdrjournal_start sunken_convoy
+  progress_fish: cdrjournal_progress fishermans_request fish add 1
+  turnin: cdrjournal_turnin fishermans_request
+  fail: cdrjournal_fail fishermans_request
+  expire: cdrjournal_expire fishermans_request
 ```
 
-The `amount` argument supports BetonQuest arguments/placeholders because it is parsed as a BetonQuest numeric argument.
-
-## BetonQuest conditions
+Conditions:
 
 ```yaml
 conditions:
-  journal_active: cdrjournal_active lost_cargo
-  journal_ready: cdrjournal_ready lost_cargo
-  journal_expired: cdrjournal_expired lost_cargo
+  daily_available: cdrjournal_available fishermans_request
+  limited_available: cdrjournal_available sunken_convoy
+  ready: cdrjournal_ready sunken_convoy
+  active: cdrjournal_active sunken_convoy
+  expired: cdrjournal_expired sunken_convoy
 ```
 
-A typical NPC completion branch checks `cdrjournal_ready lost_cargo`, then executes the turn-in action and the real reward actions. With `CdrReputation` v0.2.0:
+Use `cdrjournal_available` in NPC conversations before offering an accept option. It accounts for daily locks, limited start/end windows, previous terminal outcomes, and existing active sessions.
 
-```yaml
-actions:
-  rep_reward: cdrrep_add 25 "QUEST_COMPLETED"
-```
+### Journal behavior
 
-For failed/expired quests, use the corresponding journal action and then a `cdrrep_remove` action.
+- Bound to the owner's UUID and quest ID.
+- Objective progress updates in the written book.
+- Countdown refreshes on the configured interval.
+- Daily/limited availability information is shown in the journal.
+- Completed objectives change the journal to `RETURN TO NPC`.
+- Turn-in removes the book before BetonQuest grants rewards.
+- Journal protection prevents normal dropping/storage abuse.
+- Sessions persist across restart.
 
-## Quest definitions
+### Admin commands
 
-`quests.yml` controls what the book displays:
-
-```yaml
-quests:
-  lost_cargo:
-    title: "Lost Cargo"
-    type: "STORY"
-    giver: "Harbor Master"
-    time-limit-seconds: 2700
-    objectives:
-      cargo:
-        text: "Ambil Lost Cargo"
-        target: 12
-    rewards:
-      - "+25 Reputation"
-      - "1x Treasure Map"
-```
-
-`time-limit-seconds: 0` disables the journal countdown.
-
-## Admin commands
-
-Permission: `cdrquestjournal.admin` (OP by default).
+Permission: `cdrquestjournal.admin` (default OP).
 
 ```text
 /cqj reload
 /cqj inspect <player>
 /cqj restore <player> [questId]
+/cqj limited ...
 ```
-
-There are intentionally no player-facing gameplay commands.
-
-## Timer / expiration
-
-The journal countdown is enforced locally for turn-in. BetonQuest should still own the actual quest-expiration event, for example with its delay/timer flow. When BetonQuest decides the quest has expired, execute:
-
-```text
-cdrjournal_expire <questId>
-```
-
-and then the reputation penalty / quest cleanup events. This avoids duplicate penalties and keeps BetonQuest as the quest-state authority.
-
-## Persistence
-
-Active journal sessions are persisted to:
-
-```text
-plugins/CdrQuestJournal/sessions.yml
-```
-
-Progress and expiration timestamps survive server restarts.
 
 ## Build
+
+Requirements: JDK 21 and Maven 3.9+.
 
 ```bash
 mvn clean package
@@ -136,16 +102,10 @@ mvn clean package
 Output:
 
 ```text
-target/CdrQuestJournal-0.1.0.jar
+target/CdrQuestJournal-0.2.0.jar
 ```
 
-## Next planned work
-
-- Daily quest reset rules.
-- Admin-managed limited quest windows.
-- Better Citizens-specific visual feedback.
-- Optional aggregated multi-quest journal mode.
-- Richer reward/requirement rendering.
+Target: Paper 1.21.11, BetonQuest 3.2.0.
 
 ## License
 
