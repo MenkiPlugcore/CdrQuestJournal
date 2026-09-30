@@ -6,6 +6,7 @@ import com.menkiestes.cdrquestjournal.model.NpcBinding;
 import com.menkiestes.cdrquestjournal.model.QuestDefinition;
 import com.menkiestes.cdrquestjournal.model.QuestSession;
 import com.menkiestes.cdrquestjournal.model.QuestType;
+import com.menkiestes.cdrquestjournal.service.AdminGuiService;
 import com.menkiestes.cdrquestjournal.service.JournalService;
 import com.menkiestes.cdrquestjournal.service.NpcBindingService;
 import com.menkiestes.cdrquestjournal.service.QuestAvailabilityService;
@@ -35,14 +36,16 @@ public final class JournalAdminCommand implements CommandExecutor, TabCompleter 
     private final MessageService messages;
     private final QuestAvailabilityService availability;
     private final NpcBindingService bindings;
+    private final AdminGuiService gui;
 
     public JournalAdminCommand(CdrQuestJournalPlugin plugin, JournalService service, MessageService messages,
-                               QuestAvailabilityService availability, NpcBindingService bindings) {
+                               QuestAvailabilityService availability, NpcBindingService bindings, AdminGuiService gui) {
         this.plugin = plugin;
         this.service = service;
         this.messages = messages;
         this.availability = availability;
         this.bindings = bindings;
+        this.gui = gui;
     }
 
     @Override
@@ -52,11 +55,16 @@ public final class JournalAdminCommand implements CommandExecutor, TabCompleter 
             return true;
         }
         if (args.length == 0) {
-            sendUsage(sender);
+            if (sender instanceof Player player) gui.openDashboard(player);
+            else sendUsage(sender);
             return true;
         }
 
         switch (args[0].toLowerCase()) {
+            case "gui" -> {
+                if (sender instanceof Player player) gui.openDashboard(player);
+                else sender.sendMessage("§cAdmin GUI hanya dapat dibuka in-game.");
+            }
             case "reload" -> { plugin.reloadAll(); sender.sendMessage(messages.text("reload")); }
             case "inspect" -> inspect(sender, args);
             case "restore" -> restore(sender, args);
@@ -88,6 +96,7 @@ public final class JournalAdminCommand implements CommandExecutor, TabCompleter 
         if (player == null) { sender.sendMessage("§cPlayer harus online."); return; }
         String questId = args.length >= 3 ? args[2] : null;
         if (!service.restore(player, questId)) { sender.sendMessage("§cTidak ada journal aktif yang cocok."); return; }
+        plugin.getJournalUiService().refreshAll(player);
         sender.sendMessage(messages.text("restored"));
     }
 
@@ -228,7 +237,7 @@ public final class JournalAdminCommand implements CommandExecutor, TabCompleter 
     }
 
     private void sendUsage(CommandSender sender) {
-        sender.sendMessage("§7/cqj <reload|inspect|restore|limited|npc>");
+        sender.sendMessage("§7/cqj [gui|reload|inspect|restore|limited|npc]");
     }
 
     private void sendNpcUsage(CommandSender sender) {
@@ -251,7 +260,7 @@ public final class JournalAdminCommand implements CommandExecutor, TabCompleter 
     @Override
     public List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String alias, @NotNull String[] args) {
         if (!sender.hasPermission("cdrquestjournal.admin")) return List.of();
-        if (args.length == 1) return filter(List.of("reload", "inspect", "restore", "limited", "npc"), args[0]);
+        if (args.length == 1) return filter(List.of("gui", "reload", "inspect", "restore", "limited", "npc"), args[0]);
         if (args.length == 2 && ("inspect".equalsIgnoreCase(args[0]) || "restore".equalsIgnoreCase(args[0]))) {
             return filter(Bukkit.getOnlinePlayers().stream().map(Player::getName).toList(), args[1]);
         }
