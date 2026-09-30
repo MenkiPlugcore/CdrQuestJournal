@@ -11,16 +11,33 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
       - name: Set up Java 21
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '21'
           cache: maven
-      - name: Build
-        run: mvn -B clean package
+
+      - name: Verify
+        run: mvn -B clean verify
+
+      - name: Validate plugin JAR
+        shell: bash
+        run: |
+          set -euo pipefail
+          JAR="target/CdrQuestJournal-1.0.0.jar"
+          test -f "$JAR"
+          jar tf "$JAR" > jar-contents.txt
+          grep -qx 'plugin.yml' jar-contents.txt
+          grep -qx 'config.yml' jar-contents.txt
+          grep -qx 'quests.yml' jar-contents.txt
+          grep -q 'com/menkiestes/cdrquestjournal/CdrQuestJournalPlugin.class' jar-contents.txt
+          grep -q 'com/menkiestes/cdrquestjournal/service/ReliabilityService.class' jar-contents.txt
+          grep -q 'com/menkiestes/cdrquestjournal/service/TurnInCoordinator.class' jar-contents.txt
+
       - name: Upload plugin JAR
         uses: actions/upload-artifact@v4
         with:
-          name: CdrQuestJournal-0.9.5
-          path: target/CdrQuestJournal-0.9.5.jar
+          name: CdrQuestJournal-1.0.0
+          path: target/CdrQuestJournal-1.0.0.jar
