@@ -8,6 +8,10 @@ quests:
       repeatable: false
       requires-all: []
       requires-any: []
+    abandon:
+      allowed: true
+    cooldown:
+      seconds: 0
     description:
       - "Temukan kapal karam."
       - "Ambil kembali muatan yang hilang."
@@ -38,6 +42,10 @@ quests:
       requires-all:
         - "lost_cargo"
       requires-any: []
+    abandon:
+      allowed: true
+    cooldown:
+      seconds: 0
     description:
       - "Selidiki siapa yang berada di balik hilangnya konvoi."
     objectives:
@@ -63,6 +71,10 @@ quests:
       requires-any:
         - "harbor_testimony"
         - "sunken_convoy"
+    abandon:
+      allowed: false
+    cooldown:
+      seconds: 0
     description:
       - "Quest cabang contoh: terbuka setelah salah satu prerequisite selesai."
       - "Gunakan condition CdrReputation di BetonQuest untuk menentukan jalur dialog/reward."
@@ -80,6 +92,10 @@ quests:
     type: "DAILY"
     giver: "Old Fisherman"
     time-limit-seconds: 3600
+    abandon:
+      allowed: true
+    cooldown:
+      seconds: 0
     description:
       - "Bantu nelayan memenuhi tangkapan hariannya."
     objectives:
@@ -98,6 +114,10 @@ quests:
     type: "LIMITED"
     giver: "Harbor Captain"
     time-limit-seconds: 7200
+    abandon:
+      allowed: true
+    cooldown:
+      seconds: 0
     description:
       - "Cari reruntuhan konvoi yang tenggelam."
       - "Pulihkan muatan penting sebelum event berakhir."
