@@ -1,117 +1,103 @@
 # CdrQuestJournal
 
-Quest Journal bridge for MoonSign S2. BetonQuest remains the quest engine/source of truth; CdrQuestJournal handles physical journals, personal quest lifecycle, Citizens quest-giver binding, safe turn-in transactions, story progression, persistent quest history, cooldowns, crossplay-safe journal presentation, admin management, and production reliability guards.
+CdrQuestJournal is a per-player RPG quest-journal layer for Paper servers. BetonQuest remains the quest engine/source of truth; CdrQuestJournal handles physical journals, lifecycle state, Citizens quest-giver binding, safe turn-in transactions, story progression, quest history, cooldowns, crossplay-safe presentation, admin tools, and reliability guards.
 
-## v0.9.5 — Reliability, Crossplay & Migration Polish
+Originally built for MoonSign S2 by CADERA / MENKIESTES.
 
-This release focuses on production hardening rather than new gameplay.
+## v1.0.0 — Production Release
 
-### Config migration
+Version 1.0.0 freezes the current core architecture as the production baseline.
 
-`config.yml` now has a schema version:
+Core systems:
+
+- Per-player STORY / DAILY / LIMITED quests.
+- Persistent objective progress and timers.
+- UUID-bound protected written Quest Journals.
+- Citizens quest-giver binding by NPC ID/UUID.
+- Strict NPC start/turn-in validation.
+- Safe `PREPARED -> REWARDED -> COMMITTED` turn-in transactions.
+- Restart/crash recovery for pending turn-ins.
+- STORY chains with `requires-all` and `requires-any` prerequisites.
+- Persistent story completion.
+- Persistent quest history: `COMPLETED`, `FAILED`, `EXPIRED`, `ABANDONED`.
+- NPC-only abandon flow.
+- Generic per-quest cooldowns.
+- DAILY cycle locking and LIMITED event scheduling.
+- Crossplay-safe Java/Bedrock journal UI.
+- Admin GUI for quests, limited schedules, NPC bindings, sessions, history, cooldowns, and restore tools.
+- Config migration with backups.
+- Startup diagnostics, circular story-chain detection, duplicate/orphan journal sanitation, and conservative orphan-session recovery.
+
+Party/shared quest state is intentionally not implemented. Quest state is personal to each player.
+
+## Requirements
+
+- Java 21
+- Paper 1.21.11
+- Citizens API / Citizens compatible with 2.0.44-SNAPSHOT
+- BetonQuest 3.2.0 for quest gameplay integration
+- CdrReputation optional
+- Geyser/Floodgate optional
+
+See `docs/PRODUCTION.md` for install, upgrade, rollback, and pre-launch checks.
+
+## Quest definition example
 
 ```yaml
-config-version: 1
+quests:
+  lost_cargo:
+    title: "Lost Cargo"
+    type: "STORY"
+    giver: "Harbor Master"
+    time-limit-seconds: 2700
+
+    story:
+      repeatable: false
+      requires-all: []
+      requires-any: []
+
+    abandon:
+      allowed: true
+
+    cooldown:
+      seconds: 0
+
+    description:
+      - "Temukan kapal karam."
+      - "Ambil kembali muatan yang hilang."
+
+    objectives:
+      cargo:
+        text: "Ambil Lost Cargo"
+        target: 12
+
+    rewards:
+      - "+25 Reputation"
+      - "3x Iron Ingot"
+
+    failure:
+      - "-10 Reputation"
+
+    expiration:
+      - "-15 Reputation"
 ```
 
-Existing installations are migrated automatically. Before a schema migration, the plugin keeps a timestamped backup such as:
+## BetonQuest actions
 
 ```text
-config-backup-v0-1759220000.yml
+cdrjournal_start <questId>
+cdrjournal_progress <questId> <objectiveId> <add|set> <amount>
+cdrjournal_prepare <questId>
+cdrjournal_finalize <questId>
+cdrjournal_abort <questId>
+cdrjournal_fail <questId>
+cdrjournal_expire <questId>
+cdrjournal_abandon <questId>
 ```
 
-Missing keys from the bundled config are merged without intentionally replacing existing custom values.
+Legacy `cdrjournal_turnin` exists for compatibility but is disabled by default. Production deployments should use the safe transaction flow.
 
-### Startup diagnostics
-
-On enable/reload the console reports:
-
-- Total STORY / DAILY / LIMITED quest definitions.
-- Bound, unresolved, and unbound Citizens NPC quest givers.
-- Persisted and orphaned quest sessions.
-- Pending safe turn-in transactions.
-- STORY chain circular dependencies.
-- Crossplay-safe UI state.
-- Config schema version.
-
-Orphan sessions are kept by default. A removed or temporarily broken quest definition therefore does not automatically destroy player progress.
-
-### Journal sanitation
-
-On join/respawn/reload the plugin can remove:
-
-- Duplicate physical journals for the same active quest.
-- Orphan physical journals with no valid active session/definition.
-
-The authoritative session data is not deleted by this cleanup.
-
-### Crossplay fallback
-
-When Geyser is detected and `reliability.force-crossplay-safe-with-geyser` is enabled, `journal-ui.crossplay-safe` is forced on to avoid unsupported/decorative book formatting for Bedrock players.
-
-```yaml
-reliability:
-  debug: false
-  log-details: false
-  cleanup-duplicate-journals: true
-  cleanup-orphan-journals: true
-  force-crossplay-safe-with-geyser: true
-  orphan-session-policy: "KEEP"
-```
-
-## v0.9.0 — Quest History, Abandon & Cooldown
-
-All quest progress remains per-player. Party/shared quest state is intentionally not implemented.
-
-Terminal outcomes are persisted to `plugins/CdrQuestJournal/quest-history.yml` as `COMPLETED`, `FAILED`, `EXPIRED`, or `ABANDONED`. Each history entry stores quest ID/type, start/end time, Quest Giver, cycle/event key, and outcome.
-
-Player-facing abandon remains NPC-based:
-
-```yaml
-abandon:
-  allowed: true
-
-cooldown:
-  seconds: 21600
-```
-
-BetonQuest hooks include:
-
-```yaml
-conditions:
-  completed_before: cdrjournal_history_completed lost_cargo
-  can_abandon: cdrjournal_can_abandon lost_cargo
-  cooldown_ready: cdrjournal_cooldown_ready lost_cargo
-  story_done: cdrjournal_story_completed lost_cargo
-  available: cdrjournal_available lost_cargo
-
-actions:
-  abandon_lost_cargo: cdrjournal_abandon lost_cargo
-```
-
-## Story chain / progression
-
-STORY definitions support persistent prerequisites:
-
-```yaml
-story:
-  repeatable: false
-  requires-all:
-    - lost_cargo
-  requires-any: []
-```
-
-Story completion is recorded only after the safe turn-in reaches COMMIT.
-
-## Admin GUI
-
-Run `/cqj` or `/cqj gui` in-game with `cdrquestjournal.admin`.
-
-The dashboard provides Quest Manager, Limited Quest Manager, Player Sessions, Quest History, Active Cooldowns, Citizens NPC binding, journal restore tools, and reload.
-
-## Safe turn-in
-
-Recommended BetonQuest flow:
+Recommended turn-in sequence:
 
 ```yaml
 actions:
@@ -122,19 +108,149 @@ actions:
   abort: cdrjournal_abort lost_cargo
 ```
 
-The transaction flow is `PREPARED -> REWARDED -> COMMITTED`, with pending recovery after restart.
+## BetonQuest conditions
+
+```text
+cdrjournal_active <questId>
+cdrjournal_ready <questId>
+cdrjournal_expired <questId>
+cdrjournal_available <questId>
+cdrjournal_correct_npc <questId>
+cdrjournal_story_completed <questId>
+cdrjournal_history_completed <questId>
+cdrjournal_can_abandon <questId>
+cdrjournal_cooldown_ready <questId>
+```
+
+## Story progression
+
+Linear prerequisite:
+
+```yaml
+story:
+  repeatable: false
+  requires-all:
+    - lost_cargo
+  requires-any: []
+```
+
+Branch/convergence prerequisite:
+
+```yaml
+story:
+  repeatable: false
+  requires-all: []
+  requires-any:
+    - royal_route
+    - outlaw_route
+```
+
+Story completion is recorded only after safe turn-in COMMIT.
+
+## Daily and Limited quests
+
+DAILY quests use the configured timezone/reset cycle. Default:
+
+```yaml
+lifecycle:
+  timezone: "Asia/Jakarta"
+  daily-reset: "00:00"
+```
+
+LIMITED quests are scheduled by admin through `/cqj`, the admin GUI, or exact commands such as:
+
+```text
+/cqj limited set <questId> <yyyy-MM-dd_HH:mm> <yyyy-MM-dd_HH:mm>
+/cqj limited end <questId> <yyyy-MM-dd_HH:mm>
+/cqj limited now <questId> <durationHours>
+```
+
+## Admin
+
+Open the admin dashboard:
+
+```text
+/cqj
+```
+
+or:
+
+```text
+/cqj gui
+```
+
+Permission:
+
+```text
+cdrquestjournal.admin
+```
+
+The GUI manages quest definitions, limited schedules, Citizens bindings, online player sessions, quest history, cooldowns, and journal restore operations.
+
+## Reliability defaults
+
+```yaml
+config-version: 1
+
+journal-ui:
+  crossplay-safe: true
+
+turn-in:
+  allow-legacy-action: false
+  prepare-timeout-seconds: 120
+  audit-log: true
+
+reliability:
+  debug: false
+  log-details: false
+  cleanup-duplicate-journals: true
+  cleanup-orphan-journals: true
+  force-crossplay-safe-with-geyser: true
+  orphan-session-policy: "KEEP"
+```
+
+Orphan sessions are intentionally retained by default. Temporarily removing or breaking a quest definition therefore does not automatically destroy player progress.
+
+## Persistent files
+
+Operational player/server state may include:
+
+```text
+sessions.yml
+story-progress.yml
+quest-history.yml
+lifecycle.yml
+limited.yml
+npc-bindings.yml
+pending-turnins.yml
+turnin-audit.log
+```
+
+Back up the entire `plugins/CdrQuestJournal/` directory before upgrades.
 
 ## Build
 
-Requires JDK 21 and Maven 3.9+.
-
 ```bash
-mvn clean package
+mvn clean verify
 ```
 
-Output: `target/CdrQuestJournal-0.9.5.jar`.
+Output:
 
-Target: Paper 1.21.11, BetonQuest 3.2.0, Citizens API 2.0.44-SNAPSHOT.
+```text
+target/CdrQuestJournal-1.0.0.jar
+```
+
+CI validates that critical resources and core classes are present in the generated JAR before uploading the artifact.
+
+## Versioning
+
+After 1.0.0:
+
+- `1.0.x` — backward-compatible fixes.
+- `1.x.0` — backward-compatible features.
+- `2.0.0` — breaking changes.
+
+See `CHANGELOG.md` for release history.
 
 ## License
 
