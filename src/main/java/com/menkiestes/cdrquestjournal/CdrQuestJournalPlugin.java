@@ -7,10 +7,12 @@ import com.menkiestes.cdrquestjournal.listener.CitizensNpcInteractionListener;
 import com.menkiestes.cdrquestjournal.listener.JournalProtectionListener;
 import com.menkiestes.cdrquestjournal.listener.JournalUiListener;
 import com.menkiestes.cdrquestjournal.service.AdminGuiService;
+import com.menkiestes.cdrquestjournal.service.ConfigMigrationService;
 import com.menkiestes.cdrquestjournal.service.JournalService;
 import com.menkiestes.cdrquestjournal.service.JournalUiService;
 import com.menkiestes.cdrquestjournal.service.NpcBindingService;
 import com.menkiestes.cdrquestjournal.service.QuestAvailabilityService;
+import com.menkiestes.cdrquestjournal.service.ReliabilityService;
 import com.menkiestes.cdrquestjournal.service.TurnInAuditLog;
 import com.menkiestes.cdrquestjournal.service.TurnInCoordinator;
 import com.menkiestes.cdrquestjournal.storage.LifecycleStore;
@@ -31,11 +33,18 @@ public final class CdrQuestJournalPlugin extends JavaPlugin {
     private NpcBindingService npcBindingService;
     private TurnInCoordinator turnInCoordinator;
     private AdminGuiService adminGuiService;
+    private ReliabilityService reliabilityService;
     private BukkitTask refreshTask;
 
     @Override
     public void onEnable() {
         saveDefaultConfig();
+        ConfigMigrationService.Result migration = new ConfigMigrationService(this).migrate();
+        if (migration.migrated()) {
+            getLogger().info("Config migration: v" + migration.fromVersion() + " -> v" + migration.toVersion()
+                    + ", addedKeys=" + migration.addedKeys()
+                    + (migration.backupFile() == null ? "" : ", backup=" + migration.backupFile().getName()));
+        }
         saveResource("quests.yml", false);
 
         questRegistry = new QuestRegistry(this);
@@ -54,8 +63,10 @@ public final class CdrQuestJournalPlugin extends JavaPlugin {
         turnInCoordinator = new TurnInCoordinator(this, journalService, npcBindingService, turnInStore,
                 new TurnInAuditLog(this), messages);
         adminGuiService = new AdminGuiService(this, journalService, availabilityService, npcBindingService);
+        reliabilityService = new ReliabilityService(this, journalService, npcBindingService);
+        reliabilityService.enforceCrossplayFallback();
 
-        getServer().getPluginManager().registerEvents(new JournalProtectionListener(this, journalService, turnInCoordinator), this);
+        getServer().getPluginManager().registerEvents(new JournalProtectionListener(this, journalService, turnInCoordinator, reliabilityService), this);
         getServer().getPluginManager().registerEvents(new CitizensNpcInteractionListener(npcBindingService, adminGuiService), this);
         getServer().getPluginManager().registerEvents(new JournalUiListener(this, journalUiService), this);
         getServer().getPluginManager().registerEvents(adminGuiService, this);
@@ -78,16 +89,20 @@ public final class CdrQuestJournalPlugin extends JavaPlugin {
         if (getConfig().getBoolean("journal.restore-on-join", true)) {
             getServer().getOnlinePlayers().forEach(player -> {
                 turnInCoordinator.recoverPlayer(player);
+                reliabilityService.sanitizePlayer(player);
                 journalService.restorePlayer(player);
                 journalUiService.refreshAll(player);
             });
         }
+        reliabilityService.runStartupDiagnostics();
 
         getLogger().info("Citizens NPC quest giver binding enabled.");
         getLogger().info("Safe turn-in transaction recovery enabled.");
         getLogger().info("Crossplay-safe polished journal UI enabled.");
         getLogger().info("Quest Admin GUI enabled.");
         getLogger().info("Persistent story chain progression enabled.");
+        getLogger().info("Quest history, abandon, and cooldown enabled.");
+        getLogger().info("Reliability diagnostics and migration guard enabled.");
         getLogger().info("CdrQuestJournal v" + getPluginMeta().getVersion() + " enabled.");
     }
 
@@ -100,16 +115,20 @@ public final class CdrQuestJournalPlugin extends JavaPlugin {
 
     public void reloadAll() {
         reloadConfig();
+        new ConfigMigrationService(this).migrate();
         questRegistry.reload();
         messages.reload(getConfig());
         availabilityService.reload();
         npcBindingService.reload();
+        reliabilityService.enforceCrossplayFallback();
         startRefreshTask();
         getServer().getOnlinePlayers().forEach(player -> {
             turnInCoordinator.recoverPlayer(player);
+            reliabilityService.sanitizePlayer(player);
             journalService.restorePlayer(player);
             journalUiService.refreshAll(player);
         });
+        reliabilityService.runStartupDiagnostics();
     }
 
     public QuestRegistry getQuestRegistry() { return questRegistry; }
@@ -118,6 +137,7 @@ public final class CdrQuestJournalPlugin extends JavaPlugin {
     public TurnInCoordinator getTurnInCoordinator() { return turnInCoordinator; }
     public JournalUiService getJournalUiService() { return journalUiService; }
     public AdminGuiService getAdminGuiService() { return adminGuiService; }
+    public ReliabilityService getReliabilityService() { return reliabilityService; }
 
     private void startRefreshTask() {
         if (refreshTask != null) refreshTask.cancel();
