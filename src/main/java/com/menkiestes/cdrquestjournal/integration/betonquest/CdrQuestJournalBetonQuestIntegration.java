@@ -28,6 +28,7 @@ public final class CdrQuestJournalBetonQuestIntegration implements Integration {
         api.actions().registry().register("cdrjournal_turnin", new JournalSimpleActionFactory(service, bindings, JournalSimpleAction.Mode.TURN_IN));
         api.actions().registry().register("cdrjournal_fail", new JournalSimpleActionFactory(service, bindings, JournalSimpleAction.Mode.FAIL));
         api.actions().registry().register("cdrjournal_expire", new JournalSimpleActionFactory(service, bindings, JournalSimpleAction.Mode.EXPIRE));
+        api.actions().registry().register("cdrjournal_abandon", new JournalSimpleActionFactory(service, bindings, JournalSimpleAction.Mode.ABANDON));
         api.actions().registry().register("cdrjournal_progress", new JournalProgressActionFactory(service));
         api.actions().registry().register("cdrjournal_prepare", new JournalTurnInTransactionActionFactory(turnIns, JournalTurnInTransactionAction.Mode.PREPARE));
         api.actions().registry().register("cdrjournal_finalize", new JournalTurnInTransactionActionFactory(turnIns, JournalTurnInTransactionAction.Mode.FINALIZE));
@@ -36,9 +37,12 @@ public final class CdrQuestJournalBetonQuestIntegration implements Integration {
         api.conditions().registry().register("cdrjournal_active", new JournalStateConditionFactory(service, JournalStateCondition.Mode.ACTIVE));
         api.conditions().registry().register("cdrjournal_ready", new JournalStateConditionFactory(service, JournalStateCondition.Mode.READY));
         api.conditions().registry().register("cdrjournal_expired", new JournalStateConditionFactory(service, JournalStateCondition.Mode.EXPIRED));
+        api.conditions().registry().register("cdrjournal_can_abandon", new JournalStateConditionFactory(service, JournalStateCondition.Mode.ABANDONABLE));
         api.conditions().registry().register("cdrjournal_available", new JournalAvailabilityConditionFactory(service));
         api.conditions().registry().register("cdrjournal_correct_npc", new JournalNpcConditionFactory(bindings));
         api.conditions().registry().register("cdrjournal_story_completed", new StoryCompletedConditionFactory(availability));
+        api.conditions().registry().register("cdrjournal_history_completed", new JournalHistoryConditionFactory(availability, JournalHistoryCondition.Mode.COMPLETED));
+        api.conditions().registry().register("cdrjournal_cooldown_ready", new JournalHistoryConditionFactory(availability, JournalHistoryCondition.Mode.COOLDOWN_READY));
     }
 
     @Override public void postEnable(BetonQuestApi api) throws QuestException {}
