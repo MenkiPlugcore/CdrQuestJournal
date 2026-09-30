@@ -3,8 +3,10 @@ package com.menkiestes.cdrquestjournal;
 import com.menkiestes.cdrquestjournal.command.JournalAdminCommand;
 import com.menkiestes.cdrquestjournal.config.QuestRegistry;
 import com.menkiestes.cdrquestjournal.integration.betonquest.BetonQuestBootstrap;
+import com.menkiestes.cdrquestjournal.listener.CitizensNpcInteractionListener;
 import com.menkiestes.cdrquestjournal.listener.JournalProtectionListener;
 import com.menkiestes.cdrquestjournal.service.JournalService;
+import com.menkiestes.cdrquestjournal.service.NpcBindingService;
 import com.menkiestes.cdrquestjournal.service.QuestAvailabilityService;
 import com.menkiestes.cdrquestjournal.storage.LifecycleStore;
 import com.menkiestes.cdrquestjournal.storage.LimitedScheduleStore;
@@ -19,6 +21,7 @@ public final class CdrQuestJournalPlugin extends JavaPlugin {
     private MessageService messages;
     private JournalService journalService;
     private QuestAvailabilityService availabilityService;
+    private NpcBindingService npcBindingService;
     private BukkitTask refreshTask;
 
     @Override
@@ -33,20 +36,22 @@ public final class CdrQuestJournalPlugin extends JavaPlugin {
         LimitedScheduleStore limitedStore = new LimitedScheduleStore(this);
         LifecycleStore lifecycleStore = new LifecycleStore(this);
         availabilityService = new QuestAvailabilityService(this, limitedStore, lifecycleStore);
+        npcBindingService = new NpcBindingService(this, messages);
 
         SessionStore sessionStore = new SessionStore(this);
         journalService = new JournalService(this, questRegistry, sessionStore, messages, availabilityService);
 
         getServer().getPluginManager().registerEvents(new JournalProtectionListener(this, journalService), this);
+        getServer().getPluginManager().registerEvents(new CitizensNpcInteractionListener(npcBindingService), this);
 
-        JournalAdminCommand adminCommand = new JournalAdminCommand(this, journalService, messages, availabilityService);
+        JournalAdminCommand adminCommand = new JournalAdminCommand(this, journalService, messages, availabilityService, npcBindingService);
         PluginCommand command = getCommand("cdrjournal");
         if (command == null) throw new IllegalStateException("Command cdrjournal missing from plugin.yml");
         command.setExecutor(adminCommand);
         command.setTabCompleter(adminCommand);
 
         if (getServer().getPluginManager().getPlugin("BetonQuest") != null) {
-            if (BetonQuestBootstrap.register(this, journalService)) {
+            if (BetonQuestBootstrap.register(this, journalService, npcBindingService)) {
                 getLogger().info("BetonQuest integration registered.");
             }
         } else {
@@ -58,6 +63,7 @@ public final class CdrQuestJournalPlugin extends JavaPlugin {
             getServer().getOnlinePlayers().forEach(journalService::restorePlayer);
         }
 
+        getLogger().info("Citizens NPC quest giver binding enabled.");
         getLogger().info("CdrQuestJournal v" + getPluginMeta().getVersion() + " enabled.");
     }
 
@@ -72,17 +78,14 @@ public final class CdrQuestJournalPlugin extends JavaPlugin {
         questRegistry.reload();
         messages.reload(getConfig());
         availabilityService.reload();
+        npcBindingService.reload();
         startRefreshTask();
         getServer().getOnlinePlayers().forEach(journalService::restorePlayer);
     }
 
-    public QuestRegistry getQuestRegistry() {
-        return questRegistry;
-    }
-
-    public QuestAvailabilityService getAvailabilityService() {
-        return availabilityService;
-    }
+    public QuestRegistry getQuestRegistry() { return questRegistry; }
+    public QuestAvailabilityService getAvailabilityService() { return availabilityService; }
+    public NpcBindingService getNpcBindingService() { return npcBindingService; }
 
     private void startRefreshTask() {
         if (refreshTask != null) refreshTask.cancel();

@@ -9,6 +9,12 @@ lifecycle:
   timezone: "Asia/Jakarta"
   daily-reset: "00:00"
 
+npc:
+  require-binding-for-start: true
+  require-binding-for-turnin: true
+  interaction-context-seconds: 60
+  bind-look-distance: 8
+
 messages:
   prefix: "&8[&6Quest Journal&8] &r"
   accepted: "&aQuest &f%quest% &aditerima. Journal telah diberikan."
@@ -28,8 +34,11 @@ messages:
   limited-not-started: "&eLimited Quest &f%quest% &ebelum dimulai. Mulai: &f%start%"
   limited-ended: "&cLimited Quest &f%quest% &csudah berakhir pada &f%end%"
   limited-locked: "&eKamu sudah menyelesaikan/gagal Limited Quest &f%quest% &epada event ini."
+  npc-not-bound: "&cQuest &f%quest% &cbelum memiliki Quest Giver NPC yang valid."
+  npc-click-required: "&eBicara langsung dengan &f%npc% &euntuk melanjutkan quest ini."
+  npc-wrong: "&cJournal quest &f%quest% &chanya dapat diproses oleh &f%npc%&c."
   restored: "&aQuest Journal berhasil dipulihkan."
-  reload: "&aKonfigurasi, lifecycle, dan quest definition berhasil dimuat ulang."
+  reload: "&aKonfigurasi, lifecycle, NPC binding, dan quest definition berhasil dimuat ulang."
   no-active: "&7Player tidak memiliki quest journal aktif."
   inspect-header: "&6Quest aktif milik &f%player%&6:"
   inspect-line: "&8- &f%quest% &8| &7%status% &8| &e%time%"

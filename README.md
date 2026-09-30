@@ -1,94 +1,79 @@
 # CdrQuestJournal
 
-Quest Journal bridge for MoonSign S2. BetonQuest remains the quest engine/source of truth; CdrQuestJournal provides the physical journal, persistent progress display, lifecycle timers, protected quest books, and NPC turn-in flow.
+Quest Journal bridge for MoonSign S2. BetonQuest remains the quest engine/source of truth; CdrQuestJournal provides the physical journal, persistent progress display, lifecycle timers, protected quest books, and Citizens NPC turn-in flow.
 
-## v0.2.0 — Daily & Limited Quest Lifecycle
+## v0.3.0 — NPC Quest Turn-In & Quest Giver Binding
 
-### Quest types
+### Citizens NPC binding
 
-- `STORY` — normal quest lifecycle.
-- `DAILY` — one terminal result per daily reset cycle. Completion, failure, and expiry all consume that day's attempt.
-- `LIMITED` — available only inside an admin-managed event window. Completion, failure, and expiry lock the player for that event cycle.
+Every quest can be bound to a specific Citizens NPC. With the default configuration, both accepting and turning in a quest must happen through that same NPC.
 
-Default lifecycle timezone is `Asia/Jakarta` and daily reset is `00:00`. Both are configurable in `config.yml`.
-
-### Limited quest scheduling
-
-A quest must use `type: LIMITED` in `quests.yml`. Admins then schedule its live window without editing BetonQuest files:
+Admin flow:
 
 ```text
-/cqj limited set <questId> <yyyy-MM-dd_HH:mm> <yyyy-MM-dd_HH:mm>
-/cqj limited end <questId> <yyyy-MM-dd_HH:mm>
-/cqj limited now <questId> <durationHours>
-/cqj limited info <questId>
-/cqj limited clear <questId>
+1. Look directly at the Citizens NPC.
+2. /cqj npc bind <questId>
 ```
 
-Example:
+Other commands:
 
 ```text
-/cqj limited set sunken_convoy 2026-09-30_18:00 2026-10-05_23:59
+/cqj npc info <questId>
+/cqj npc unbind <questId>
 ```
 
-`limited end` can extend or shorten an active event while preserving the event cycle. Active journals automatically follow the updated end time.
+Bindings are stored in `npc-bindings.yml` using Citizens NPC ID + UUID + display name.
 
-### Effective quest deadline
+### Secure interaction context
 
-The journal deadline is the earliest applicable deadline:
+`NPCRightClickEvent` records a short-lived interaction context for the player. `cdrjournal_start` and `cdrjournal_turnin` validate that context before changing quest state. This prevents a quest from being accepted or claimed through a different NPC or unrelated trigger.
 
-```text
-min(player quest time limit, daily reset/event end)
-```
+Default context lifetime: 60 seconds.
 
-If a quest has no per-player time limit, the daily reset or limited event end becomes the deadline.
+### BetonQuest
 
-### BetonQuest integration
-
-Actions:
+Actions remain:
 
 ```yaml
 actions:
-  start_daily: cdrjournal_start fishermans_request
-  start_limited: cdrjournal_start sunken_convoy
-  progress_fish: cdrjournal_progress fishermans_request fish add 1
-  turnin: cdrjournal_turnin fishermans_request
-  fail: cdrjournal_fail fishermans_request
-  expire: cdrjournal_expire fishermans_request
+  accept: cdrjournal_start lost_cargo
+  turnin: cdrjournal_turnin lost_cargo
+  fail: cdrjournal_fail lost_cargo
+  expire: cdrjournal_expire lost_cargo
 ```
 
-Conditions:
+New condition:
 
 ```yaml
 conditions:
-  daily_available: cdrjournal_available fishermans_request
-  limited_available: cdrjournal_available sunken_convoy
-  ready: cdrjournal_ready sunken_convoy
-  active: cdrjournal_active sunken_convoy
-  expired: cdrjournal_expired sunken_convoy
+  correct_npc: cdrjournal_correct_npc lost_cargo
 ```
 
-Use `cdrjournal_available` in NPC conversations before offering an accept option. It accounts for daily locks, limited start/end windows, previous terminal outcomes, and existing active sessions.
+A typical NPC conversation can require both:
 
-### Journal behavior
+```text
+cdrjournal_ready lost_cargo
+cdrjournal_correct_npc lost_cargo
+```
 
-- Bound to the owner's UUID and quest ID.
-- Objective progress updates in the written book.
-- Countdown refreshes on the configured interval.
-- Daily/limited availability information is shown in the journal.
-- Completed objectives change the journal to `RETURN TO NPC`.
-- Turn-in removes the book before BetonQuest grants rewards.
-- Journal protection prevents normal dropping/storage abuse.
-- Sessions persist across restart.
+before executing `cdrjournal_turnin lost_cargo` and then the BetonQuest reward events such as CdrReputation changes and item rewards.
+
+### Existing v0.2.0 lifecycle
+
+- `STORY`, `DAILY`, and `LIMITED` quest types.
+- Daily reset cycle with configurable timezone/reset time.
+- Admin-managed limited quest start/end windows.
+- Effective deadline uses the earliest player/lifecycle deadline.
+- Daily and limited terminal outcomes persist across restart.
 
 ### Admin commands
-
-Permission: `cdrquestjournal.admin` (default OP).
 
 ```text
 /cqj reload
 /cqj inspect <player>
 /cqj restore <player> [questId]
 /cqj limited ...
+/cqj npc ...
 ```
 
 ## Build
@@ -99,13 +84,9 @@ Requirements: JDK 21 and Maven 3.9+.
 mvn clean package
 ```
 
-Output:
+Output: `target/CdrQuestJournal-0.3.0.jar`.
 
-```text
-target/CdrQuestJournal-0.2.0.jar
-```
-
-Target: Paper 1.21.11, BetonQuest 3.2.0.
+Target: Paper 1.21.11, BetonQuest 3.2.0, Citizens API 2.0.44-SNAPSHOT.
 
 ## License
 
