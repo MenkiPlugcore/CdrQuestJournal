@@ -5,7 +5,9 @@ import com.menkiestes.cdrquestjournal.config.QuestRegistry;
 import com.menkiestes.cdrquestjournal.integration.betonquest.BetonQuestBootstrap;
 import com.menkiestes.cdrquestjournal.listener.CitizensNpcInteractionListener;
 import com.menkiestes.cdrquestjournal.listener.JournalProtectionListener;
+import com.menkiestes.cdrquestjournal.listener.JournalUiListener;
 import com.menkiestes.cdrquestjournal.service.JournalService;
+import com.menkiestes.cdrquestjournal.service.JournalUiService;
 import com.menkiestes.cdrquestjournal.service.NpcBindingService;
 import com.menkiestes.cdrquestjournal.service.QuestAvailabilityService;
 import com.menkiestes.cdrquestjournal.service.TurnInAuditLog;
@@ -23,6 +25,7 @@ public final class CdrQuestJournalPlugin extends JavaPlugin {
     private QuestRegistry questRegistry;
     private MessageService messages;
     private JournalService journalService;
+    private JournalUiService journalUiService;
     private QuestAvailabilityService availabilityService;
     private NpcBindingService npcBindingService;
     private TurnInCoordinator turnInCoordinator;
@@ -44,12 +47,14 @@ public final class CdrQuestJournalPlugin extends JavaPlugin {
 
         SessionStore sessionStore = new SessionStore(this);
         journalService = new JournalService(this, questRegistry, sessionStore, messages, availabilityService);
+        journalUiService = new JournalUiService(this, journalService, availabilityService, npcBindingService);
         TurnInTransactionStore turnInStore = new TurnInTransactionStore(this);
         turnInCoordinator = new TurnInCoordinator(this, journalService, npcBindingService, turnInStore,
                 new TurnInAuditLog(this), messages);
 
         getServer().getPluginManager().registerEvents(new JournalProtectionListener(this, journalService, turnInCoordinator), this);
         getServer().getPluginManager().registerEvents(new CitizensNpcInteractionListener(npcBindingService), this);
+        getServer().getPluginManager().registerEvents(new JournalUiListener(this, journalUiService), this);
 
         JournalAdminCommand adminCommand = new JournalAdminCommand(this, journalService, messages, availabilityService, npcBindingService);
         PluginCommand command = getCommand("cdrjournal");
@@ -70,11 +75,13 @@ public final class CdrQuestJournalPlugin extends JavaPlugin {
             getServer().getOnlinePlayers().forEach(player -> {
                 turnInCoordinator.recoverPlayer(player);
                 journalService.restorePlayer(player);
+                journalUiService.refreshAll(player);
             });
         }
 
         getLogger().info("Citizens NPC quest giver binding enabled.");
         getLogger().info("Safe turn-in transaction recovery enabled.");
+        getLogger().info("Crossplay-safe polished journal UI enabled.");
         getLogger().info("CdrQuestJournal v" + getPluginMeta().getVersion() + " enabled.");
     }
 
@@ -95,6 +102,7 @@ public final class CdrQuestJournalPlugin extends JavaPlugin {
         getServer().getOnlinePlayers().forEach(player -> {
             turnInCoordinator.recoverPlayer(player);
             journalService.restorePlayer(player);
+            journalUiService.refreshAll(player);
         });
     }
 
@@ -102,6 +110,7 @@ public final class CdrQuestJournalPlugin extends JavaPlugin {
     public QuestAvailabilityService getAvailabilityService() { return availabilityService; }
     public NpcBindingService getNpcBindingService() { return npcBindingService; }
     public TurnInCoordinator getTurnInCoordinator() { return turnInCoordinator; }
+    public JournalUiService getJournalUiService() { return journalUiService; }
 
     private void startRefreshTask() {
         if (refreshTask != null) refreshTask.cancel();
@@ -111,6 +120,7 @@ public final class CdrQuestJournalPlugin extends JavaPlugin {
             for (var player : getServer().getOnlinePlayers()) {
                 turnInCoordinator.tickPlayer(player);
                 journalService.tickPlayer(player);
+                journalUiService.refreshAll(player);
             }
         }, ticks, ticks);
     }
