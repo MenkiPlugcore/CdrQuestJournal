@@ -52,6 +52,8 @@ public final class QuestRegistry {
             boolean repeatable = story != null && story.getBoolean("repeatable", false);
             List<String> requiresAll = story == null ? List.of() : story.getStringList("requires-all");
             List<String> requiresAny = story == null ? List.of() : story.getStringList("requires-any");
+            boolean abandonAllowed = quest.getBoolean("abandon.allowed", true);
+            long cooldownSeconds = quest.getLong("cooldown.seconds", 0L);
 
             loaded.put(questId.toLowerCase(), new QuestDefinition(
                     questId,
@@ -66,7 +68,9 @@ public final class QuestRegistry {
                     quest.getStringList("expiration"),
                     repeatable,
                     requiresAll,
-                    requiresAny
+                    requiresAny,
+                    abandonAllowed,
+                    cooldownSeconds
             ));
         }
         definitions = Map.copyOf(loaded);
