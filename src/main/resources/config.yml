@@ -5,6 +5,15 @@ journal:
   restore-on-join: true
   protect-item: true
 
+journal-ui:
+  enabled: true
+  crossplay-safe: true
+  progress-bar-width: 12
+  objectives-per-page: 4
+  show-accepted-at: true
+  show-cycle-info: true
+  item-name: "&6&lQuest Journal &8• &f%quest%"
+
 lifecycle:
   timezone: "Asia/Jakarta"
   daily-reset: "00:00"
@@ -57,7 +66,7 @@ messages:
   journal-restored-turnin: "&eQuest Journal &f%quest% &edipulihkan. Klik NPC sekali lagi untuk menyerahkannya."
   legacy-turnin-disabled: "&cAction lama cdrjournal_turnin dinonaktifkan. Gunakan safe transaction prepare/finalize."
   restored: "&aQuest Journal berhasil dipulihkan."
-  reload: "&aKonfigurasi, lifecycle, NPC binding, transaction recovery, dan quest definition berhasil dimuat ulang."
+  reload: "&aKonfigurasi, lifecycle, NPC binding, transaction recovery, journal UI, dan quest definition berhasil dimuat ulang."
   no-active: "&7Player tidak memiliki quest journal aktif."
   inspect-header: "&6Quest aktif milik &f%player%&6:"
   inspect-line: "&8- &f%quest% &8| &7%status% &8| &e%time%"
