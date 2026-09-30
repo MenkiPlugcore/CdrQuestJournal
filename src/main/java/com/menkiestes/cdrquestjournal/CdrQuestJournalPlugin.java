@@ -6,6 +6,7 @@ import com.menkiestes.cdrquestjournal.integration.betonquest.BetonQuestBootstrap
 import com.menkiestes.cdrquestjournal.listener.CitizensNpcInteractionListener;
 import com.menkiestes.cdrquestjournal.listener.JournalProtectionListener;
 import com.menkiestes.cdrquestjournal.listener.JournalUiListener;
+import com.menkiestes.cdrquestjournal.service.AdminGuiService;
 import com.menkiestes.cdrquestjournal.service.JournalService;
 import com.menkiestes.cdrquestjournal.service.JournalUiService;
 import com.menkiestes.cdrquestjournal.service.NpcBindingService;
@@ -29,6 +30,7 @@ public final class CdrQuestJournalPlugin extends JavaPlugin {
     private QuestAvailabilityService availabilityService;
     private NpcBindingService npcBindingService;
     private TurnInCoordinator turnInCoordinator;
+    private AdminGuiService adminGuiService;
     private BukkitTask refreshTask;
 
     @Override
@@ -51,12 +53,14 @@ public final class CdrQuestJournalPlugin extends JavaPlugin {
         TurnInTransactionStore turnInStore = new TurnInTransactionStore(this);
         turnInCoordinator = new TurnInCoordinator(this, journalService, npcBindingService, turnInStore,
                 new TurnInAuditLog(this), messages);
+        adminGuiService = new AdminGuiService(this, journalService, availabilityService, npcBindingService);
 
         getServer().getPluginManager().registerEvents(new JournalProtectionListener(this, journalService, turnInCoordinator), this);
-        getServer().getPluginManager().registerEvents(new CitizensNpcInteractionListener(npcBindingService), this);
+        getServer().getPluginManager().registerEvents(new CitizensNpcInteractionListener(npcBindingService, adminGuiService), this);
         getServer().getPluginManager().registerEvents(new JournalUiListener(this, journalUiService), this);
+        getServer().getPluginManager().registerEvents(adminGuiService, this);
 
-        JournalAdminCommand adminCommand = new JournalAdminCommand(this, journalService, messages, availabilityService, npcBindingService);
+        JournalAdminCommand adminCommand = new JournalAdminCommand(this, journalService, messages, availabilityService, npcBindingService, adminGuiService);
         PluginCommand command = getCommand("cdrjournal");
         if (command == null) throw new IllegalStateException("Command cdrjournal missing from plugin.yml");
         command.setExecutor(adminCommand);
@@ -82,6 +86,7 @@ public final class CdrQuestJournalPlugin extends JavaPlugin {
         getLogger().info("Citizens NPC quest giver binding enabled.");
         getLogger().info("Safe turn-in transaction recovery enabled.");
         getLogger().info("Crossplay-safe polished journal UI enabled.");
+        getLogger().info("Quest Admin GUI enabled.");
         getLogger().info("CdrQuestJournal v" + getPluginMeta().getVersion() + " enabled.");
     }
 
@@ -111,6 +116,7 @@ public final class CdrQuestJournalPlugin extends JavaPlugin {
     public NpcBindingService getNpcBindingService() { return npcBindingService; }
     public TurnInCoordinator getTurnInCoordinator() { return turnInCoordinator; }
     public JournalUiService getJournalUiService() { return journalUiService; }
+    public AdminGuiService getAdminGuiService() { return adminGuiService; }
 
     private void startRefreshTask() {
         if (refreshTask != null) refreshTask.cancel();
