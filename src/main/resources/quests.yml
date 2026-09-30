@@ -4,6 +4,10 @@ quests:
     type: "STORY"
     giver: "Harbor Master"
     time-limit-seconds: 2700
+    story:
+      repeatable: false
+      requires-all: []
+      requires-any: []
     description:
       - "Temukan kapal karam."
       - "Ambil kembali muatan yang hilang."
@@ -23,6 +27,53 @@ quests:
       - "-10 Reputation"
     expiration:
       - "-15 Reputation"
+
+  harbor_testimony:
+    title: "Harbor Testimony"
+    type: "STORY"
+    giver: "Harbor Master"
+    time-limit-seconds: 3600
+    story:
+      repeatable: false
+      requires-all:
+        - "lost_cargo"
+      requires-any: []
+    description:
+      - "Selidiki siapa yang berada di balik hilangnya konvoi."
+    objectives:
+      evidence:
+        text: "Kumpulkan bukti"
+        target: 4
+    rewards:
+      - "+35 Reputation"
+      - "Harbor Seal"
+    failure:
+      - "-10 Reputation"
+    expiration:
+      - "-15 Reputation"
+
+  tides_decision:
+    title: "The Tides Decide"
+    type: "STORY"
+    giver: "Harbor Captain"
+    time-limit-seconds: 0
+    story:
+      repeatable: false
+      requires-all: []
+      requires-any:
+        - "harbor_testimony"
+        - "sunken_convoy"
+    description:
+      - "Quest cabang contoh: terbuka setelah salah satu prerequisite selesai."
+      - "Gunakan condition CdrReputation di BetonQuest untuk menentukan jalur dialog/reward."
+    objectives:
+      decision:
+        text: "Tentukan pilihanmu"
+        target: 1
+    rewards:
+      - "Story progression"
+    failure: []
+    expiration: []
 
   fishermans_request:
     title: "Fisherman's Request"
