@@ -52,7 +52,16 @@ public final class SessionStore {
                         progress.put(objectiveId, Math.max(0, progressSection.getInt(objectiveId, 0)));
                     }
                 }
-                playerSessions.put(questId.toLowerCase(), new QuestSession(uuid, questId, quest.getLong("accepted-at", 0L), quest.getLong("expires-at", 0L), status, progress));
+                playerSessions.put(questId.toLowerCase(), new QuestSession(
+                        uuid,
+                        questId,
+                        quest.getLong("accepted-at", 0L),
+                        quest.getLong("expires-at", 0L),
+                        quest.getLong("lifecycle-ends-at", 0L),
+                        quest.getString("cycle-key", ""),
+                        status,
+                        progress
+                ));
             }
             if (!playerSessions.isEmpty()) result.put(uuid, playerSessions);
         }
@@ -67,6 +76,8 @@ public final class SessionStore {
                 String path = base + "." + session.questId();
                 yaml.set(path + ".accepted-at", session.acceptedAt());
                 yaml.set(path + ".expires-at", session.expiresAt());
+                yaml.set(path + ".lifecycle-ends-at", session.lifecycleEndsAt());
+                yaml.set(path + ".cycle-key", session.cycleKey());
                 yaml.set(path + ".status", session.status().name());
                 for (Map.Entry<String, Integer> progress : session.progress().entrySet()) {
                     yaml.set(path + ".progress." + progress.getKey(), progress.getValue());
