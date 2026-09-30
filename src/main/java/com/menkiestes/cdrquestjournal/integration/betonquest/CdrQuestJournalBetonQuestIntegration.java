@@ -7,7 +7,10 @@ import org.betonquest.betonquest.api.integration.Integration;
 
 public final class CdrQuestJournalBetonQuestIntegration implements Integration {
     private final JournalService service;
-    public CdrQuestJournalBetonQuestIntegration(JournalService service) { this.service = service; }
+
+    public CdrQuestJournalBetonQuestIntegration(JournalService service) {
+        this.service = service;
+    }
 
     @Override
     public void enable(BetonQuestApi api) throws QuestException {
@@ -16,9 +19,11 @@ public final class CdrQuestJournalBetonQuestIntegration implements Integration {
         api.actions().registry().register("cdrjournal_fail", new JournalSimpleActionFactory(service, JournalSimpleAction.Mode.FAIL));
         api.actions().registry().register("cdrjournal_expire", new JournalSimpleActionFactory(service, JournalSimpleAction.Mode.EXPIRE));
         api.actions().registry().register("cdrjournal_progress", new JournalProgressActionFactory(service));
+
         api.conditions().registry().register("cdrjournal_active", new JournalStateConditionFactory(service, JournalStateCondition.Mode.ACTIVE));
         api.conditions().registry().register("cdrjournal_ready", new JournalStateConditionFactory(service, JournalStateCondition.Mode.READY));
         api.conditions().registry().register("cdrjournal_expired", new JournalStateConditionFactory(service, JournalStateCondition.Mode.EXPIRED));
+        api.conditions().registry().register("cdrjournal_available", new JournalAvailabilityConditionFactory(service));
     }
 
     @Override public void postEnable(BetonQuestApi api) throws QuestException {}
