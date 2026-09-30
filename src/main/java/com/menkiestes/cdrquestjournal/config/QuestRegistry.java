@@ -48,6 +48,11 @@ public final class QuestRegistry {
             }
 
             QuestType type = QuestType.from(quest.getString("type", "STORY"));
+            ConfigurationSection story = quest.getConfigurationSection("story");
+            boolean repeatable = story != null && story.getBoolean("repeatable", false);
+            List<String> requiresAll = story == null ? List.of() : story.getStringList("requires-all");
+            List<String> requiresAny = story == null ? List.of() : story.getStringList("requires-any");
+
             loaded.put(questId.toLowerCase(), new QuestDefinition(
                     questId,
                     quest.getString("title", questId),
@@ -58,11 +63,29 @@ public final class QuestRegistry {
                     objectives,
                     quest.getStringList("rewards"),
                     quest.getStringList("failure"),
-                    quest.getStringList("expiration")
+                    quest.getStringList("expiration"),
+                    repeatable,
+                    requiresAll,
+                    requiresAny
             ));
         }
         definitions = Map.copyOf(loaded);
+        validateStoryLinks();
         plugin.getLogger().info("Loaded " + definitions.size() + " quest journal definitions.");
+    }
+
+    private void validateStoryLinks() {
+        for (QuestDefinition definition : definitions.values()) {
+            if (definition.type() != QuestType.STORY) continue;
+            for (String required : definition.requiresAll()) warnUnknown(definition, required);
+            for (String required : definition.requiresAny()) warnUnknown(definition, required);
+        }
+    }
+
+    private void warnUnknown(QuestDefinition definition, String required) {
+        if (!definitions.containsKey(required.toLowerCase())) {
+            plugin.getLogger().warning("Story quest '" + definition.id() + "' references unknown prerequisite '" + required + "'.");
+        }
     }
 
     public Optional<QuestDefinition> get(String questId) {
