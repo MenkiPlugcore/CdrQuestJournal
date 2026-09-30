@@ -3,6 +3,7 @@ package com.menkiestes.cdrquestjournal.config;
 import com.menkiestes.cdrquestjournal.CdrQuestJournalPlugin;
 import com.menkiestes.cdrquestjournal.model.ObjectiveDefinition;
 import com.menkiestes.cdrquestjournal.model.QuestDefinition;
+import com.menkiestes.cdrquestjournal.model.QuestType;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 
@@ -38,13 +39,19 @@ public final class QuestRegistry {
                 for (String objectiveId : objectivesSection.getKeys(false)) {
                     ConfigurationSection objective = objectivesSection.getConfigurationSection(objectiveId);
                     if (objective == null) continue;
-                    objectives.put(objectiveId, new ObjectiveDefinition(objectiveId, objective.getString("text", objectiveId), objective.getInt("target", 1)));
+                    objectives.put(objectiveId, new ObjectiveDefinition(
+                            objectiveId,
+                            objective.getString("text", objectiveId),
+                            objective.getInt("target", 1)
+                    ));
                 }
             }
+
+            QuestType type = QuestType.from(quest.getString("type", "STORY"));
             loaded.put(questId.toLowerCase(), new QuestDefinition(
                     questId,
                     quest.getString("title", questId),
-                    quest.getString("type", "STORY"),
+                    type,
                     quest.getString("giver", "Unknown"),
                     quest.getLong("time-limit-seconds", 0L),
                     quest.getStringList("description"),
