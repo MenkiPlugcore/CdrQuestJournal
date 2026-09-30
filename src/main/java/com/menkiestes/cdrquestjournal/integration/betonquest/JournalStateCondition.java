@@ -7,7 +7,7 @@ import org.betonquest.betonquest.api.profile.Profile;
 import org.betonquest.betonquest.api.quest.condition.PlayerCondition;
 
 public final class JournalStateCondition implements PlayerCondition {
-    public enum Mode { ACTIVE, READY, EXPIRED }
+    public enum Mode { ACTIVE, READY, EXPIRED, ABANDONABLE }
     private final JournalService service;
     private final Mode mode;
     private final Argument<String> questId;
@@ -18,6 +18,7 @@ public final class JournalStateCondition implements PlayerCondition {
             case ACTIVE -> service.isActive(profile.getPlayerUUID(), id);
             case READY -> service.isReady(profile.getPlayerUUID(), id);
             case EXPIRED -> service.isExpired(profile.getPlayerUUID(), id);
+            case ABANDONABLE -> service.canAbandon(profile.getPlayerUUID(), id);
         };
     }
     @Override public boolean isPrimaryThreadEnforced() { return true; }
