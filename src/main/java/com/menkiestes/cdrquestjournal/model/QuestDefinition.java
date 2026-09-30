@@ -13,7 +13,10 @@ public record QuestDefinition(
         Map<String, ObjectiveDefinition> objectives,
         List<String> rewards,
         List<String> failure,
-        List<String> expiration
+        List<String> expiration,
+        boolean storyRepeatable,
+        List<String> requiresAll,
+        List<String> requiresAny
 ) {
     public QuestDefinition {
         if (id == null || id.isBlank()) throw new IllegalArgumentException("quest id cannot be blank");
@@ -26,5 +29,12 @@ public record QuestDefinition(
         rewards = rewards == null ? List.of() : List.copyOf(rewards);
         failure = failure == null ? List.of() : List.copyOf(failure);
         expiration = expiration == null ? List.of() : List.copyOf(expiration);
+        requiresAll = normalize(requiresAll);
+        requiresAny = normalize(requiresAny);
+    }
+
+    private static List<String> normalize(List<String> ids) {
+        if (ids == null || ids.isEmpty()) return List.of();
+        return ids.stream().filter(id -> id != null && !id.isBlank()).map(String::toLowerCase).distinct().toList();
     }
 }
