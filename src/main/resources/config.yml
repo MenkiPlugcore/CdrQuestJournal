@@ -1,0 +1,26 @@
+journal:
+  refresh-seconds: 5
+  author: "MoonSign S2"
+  max-active-quests: 5
+  restore-on-join: true
+  protect-item: true
+
+messages:
+  prefix: "&8[&6Quest Journal&8] &r"
+  accepted: "&aQuest &f%quest% &aditerima. Journal telah diberikan."
+  already-active: "&eQuest &f%quest% &esudah aktif."
+  quest-not-found: "&cDefinisi quest &f%quest% &ctidak ditemukan."
+  objective-not-found: "&cObjective &f%objective% &ctidak ditemukan pada quest &f%quest%&c."
+  no-space: "&cInventory penuh. Kosongkan minimal satu slot untuk menerima Quest Journal."
+  max-active: "&cKamu sudah mencapai batas maksimal quest aktif."
+  progress: "&7Progress &f%objective%&7: &e%current%&7/&e%target%"
+  ready: "&aSemua objective selesai. Kembali ke &f%giver% &auntuk menyerahkan journal."
+  not-ready: "&cQuest ini belum siap diserahkan."
+  expired: "&cQuest &f%quest% &ctelah kedaluwarsa."
+  turned-in: "&aJournal &f%quest% &atelah diserahkan."
+  failed: "&cQuest &f%quest% &cdinyatakan gagal."
+  restored: "&aQuest Journal berhasil dipulihkan."
+  reload: "&aKonfigurasi dan quest definition berhasil dimuat ulang."
+  no-active: "&7Player tidak memiliki quest journal aktif."
+  inspect-header: "&6Quest aktif milik &f%player%&6:"
+  inspect-line: "&8- &f%quest% &8| &7%status% &8| &e%time%"

@@ -1,0 +1,22 @@
+name: CdrQuestJournal
+version: '0.1.0'
+main: com.menkiestes.cdrquestjournal.CdrQuestJournalPlugin
+api-version: '1.21'
+author: CADERA
+description: BetonQuest journal bridge for MoonSign S2.
+website: https://github.com/MenkiPlugcore/CdrQuestJournal
+softdepend:
+  - BetonQuest
+  - CdrReputation
+
+commands:
+  cdrjournal:
+    aliases: [cqj]
+    description: CdrQuestJournal administrator command.
+    usage: /cdrjournal <reload|inspect|restore>
+    permission: cdrquestjournal.admin
+
+permissions:
+  cdrquestjournal.admin:
+    description: Allows access to CdrQuestJournal administration commands.
+    default: op

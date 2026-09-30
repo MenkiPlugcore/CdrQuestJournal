@@ -1,0 +1,25 @@
+quests:
+  lost_cargo:
+    title: "Lost Cargo"
+    type: "STORY"
+    giver: "Harbor Master"
+    time-limit-seconds: 2700
+    description:
+      - "Temukan kapal karam."
+      - "Ambil kembali muatan yang hilang."
+      - "Kembali sebelum waktu habis."
+    objectives:
+      find_wreck:
+        text: "Temukan kapal karam"
+        target: 1
+      cargo:
+        text: "Ambil Lost Cargo"
+        target: 12
+    rewards:
+      - "+25 Reputation"
+      - "3x Iron Ingot"
+      - "1x Treasure Map"
+    failure:
+      - "-10 Reputation"
+    expiration:
+      - "-15 Reputation"
