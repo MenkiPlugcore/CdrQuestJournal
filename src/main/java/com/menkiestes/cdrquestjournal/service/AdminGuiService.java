@@ -4,8 +4,10 @@ import com.menkiestes.cdrquestjournal.CdrQuestJournalPlugin;
 import com.menkiestes.cdrquestjournal.model.LimitedQuestWindow;
 import com.menkiestes.cdrquestjournal.model.NpcBinding;
 import com.menkiestes.cdrquestjournal.model.QuestDefinition;
+import com.menkiestes.cdrquestjournal.model.QuestHistoryEntry;
 import com.menkiestes.cdrquestjournal.model.QuestSession;
 import com.menkiestes.cdrquestjournal.model.QuestType;
+import com.menkiestes.cdrquestjournal.model.TerminalOutcome;
 import net.citizensnpcs.api.npc.NPC;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
@@ -33,11 +35,15 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class AdminGuiService implements Listener {
     private static final int PAGE_SIZE = 45;
 
-    private enum View { DASHBOARD, QUESTS, LIMITED, QUEST_DETAIL, PLAYERS, PLAYER_DETAIL }
+    private enum View {
+        DASHBOARD, QUESTS, LIMITED, QUEST_DETAIL, PLAYERS, PLAYER_DETAIL, PLAYER_HISTORY, PLAYER_COOLDOWNS
+    }
 
     private record GuiHolder(View view, int page, String target) implements InventoryHolder {
         @Override public Inventory getInventory() { return null; }
     }
+
+    private record CooldownRow(QuestDefinition definition, long remainingSeconds) {}
 
     private final CdrQuestJournalPlugin plugin;
     private final JournalService journals;
@@ -61,7 +67,7 @@ public final class AdminGuiService implements Listener {
         inventory.setItem(12, item(Material.CLOCK, "&d&lLimited Quest Manager",
                 "&7Schedule, start, extend,", "&7atau clear limited quest."));
         inventory.setItem(14, item(Material.PLAYER_HEAD, "&b&lPlayer Sessions",
-                "&7Inspect quest journal", "&7player yang sedang online."));
+                "&7Inspect session, history,", "&7cooldown, dan story player."));
         inventory.setItem(16, item(Material.REDSTONE, "&a&lReload",
                 "&7Reload config, quests,", "&7lifecycle dan binding."));
         player.openInventory(inventory);
@@ -83,8 +89,7 @@ public final class AdminGuiService implements Listener {
         int to = Math.min(definitions.size(), from + PAGE_SIZE);
         for (int i = from; i < to; i++) {
             QuestDefinition def = definitions.get(i);
-            int slot = i - from;
-            inventory.setItem(slot, questIcon(def));
+            inventory.setItem(i - from, questIcon(def));
         }
 
         inventory.setItem(45, item(Material.ARROW, "&eBack", "&7Kembali ke dashboard."));
@@ -104,7 +109,6 @@ public final class AdminGuiService implements Listener {
         Inventory inventory = Bukkit.createInventory(new GuiHolder(View.QUEST_DETAIL, 0, def.id()), 45,
                 color("&8Quest &7• &f" + trim(def.title(), 23)));
         fill(inventory);
-
         inventory.setItem(4, questIcon(def));
 
         NpcBinding binding = bindings.binding(def.id()).orElse(null);
@@ -119,9 +123,7 @@ public final class AdminGuiService implements Listener {
         npcLore.add("");
         npcLore.add("&eKlik untuk memilih NPC baru.");
         inventory.setItem(20, item(Material.VILLAGER_SPAWN_EGG, "&6&lQuest Giver NPC", npcLore.toArray(String[]::new)));
-        if (binding != null) {
-            inventory.setItem(29, item(Material.BARRIER, "&cUnbind NPC", "&7Hapus binding NPC quest ini."));
-        }
+        if (binding != null) inventory.setItem(29, item(Material.BARRIER, "&cUnbind NPC", "&7Hapus binding NPC quest ini."));
 
         if (def.type() == QuestType.LIMITED) {
             LimitedQuestWindow window = availability.limitedWindow(def.id()).orElse(null);
@@ -138,6 +140,13 @@ public final class AdminGuiService implements Listener {
                     "&7Type: &f" + def.type().name(),
                     def.type() == QuestType.DAILY ? "&7Reset: &f" + availability.dailyReset() + " " + availability.zoneId().getId() : "&7Story quest tidak memiliki schedule global."));
         }
+
+        inventory.setItem(24, item(Material.IRON_DOOR, "&e&lAbandon Policy",
+                "&7Allowed: " + (def.abandonAllowed() ? "&aYES" : "&cNO"),
+                "&7Abandon tetap harus melalui", "&7Quest Giver NPC."));
+        inventory.setItem(26, item(Material.RECOVERY_COMPASS, "&b&lCooldown",
+                "&7Duration: &f" + (def.cooldownSeconds() <= 0 ? "None" : formatRemaining(def.cooldownSeconds())),
+                "&7Dimulai setelah outcome terminal."));
 
         inventory.setItem(36, item(Material.ARROW, "&eBack to Quests", "&7Kembali ke daftar quest."));
         inventory.setItem(44, item(Material.NETHER_STAR, "&6Admin Notes",
@@ -160,6 +169,7 @@ public final class AdminGuiService implements Listener {
             int count = journals.sessions(target.getUniqueId()).size();
             inventory.setItem(i - from, item(Material.PLAYER_HEAD, "&b" + target.getName(),
                     "&7Active journals: &f" + count,
+                    "&7History entries: &f" + availability.historyCount(target.getUniqueId()),
                     "&eKlik untuk inspect."));
         }
         inventory.setItem(45, item(Material.ARROW, "&eBack", "&7Kembali ke dashboard."));
@@ -186,7 +196,67 @@ public final class AdminGuiService implements Listener {
                     "&7Quest ID: &8" + session.questId()));
         }
         inventory.setItem(45, item(Material.ARROW, "&eBack to Players"));
+        inventory.setItem(47, item(Material.WRITABLE_BOOK, "&6Quest History",
+                "&7Entries: &f" + availability.historyCount(target.getUniqueId()),
+                "&eKlik untuk membuka."));
+        inventory.setItem(48, item(Material.RECOVERY_COMPASS, "&bActive Cooldowns", "&eKlik untuk inspect."));
         inventory.setItem(49, item(Material.CHEST, "&aRestore Journals", "&7Pulihkan seluruh journal aktif", "&7milik &f" + target.getName() + "&7."));
+        admin.openInventory(inventory);
+    }
+
+    private void openPlayerHistory(Player admin, Player target, int requestedPage) {
+        List<QuestHistoryEntry> entries = availability.history(target.getUniqueId());
+        int maxPage = Math.max(0, (entries.size() - 1) / PAGE_SIZE);
+        int page = Math.max(0, Math.min(requestedPage, maxPage));
+        Inventory inventory = Bukkit.createInventory(new GuiHolder(View.PLAYER_HISTORY, page, target.getUniqueId().toString()), 54,
+                color("&8Quest History &7• &f" + trim(target.getName(), 20)));
+        fill(inventory);
+        int from = page * PAGE_SIZE;
+        int to = Math.min(entries.size(), from + PAGE_SIZE);
+        for (int i = from; i < to; i++) {
+            QuestHistoryEntry entry = entries.get(i);
+            QuestDefinition def = plugin.getQuestRegistry().get(entry.questId()).orElse(null);
+            String title = def == null ? entry.questId() : def.title();
+            inventory.setItem(i - from, item(historyMaterial(entry.outcome()), "&f" + title,
+                    "&7Outcome: &f" + entry.outcome().name(),
+                    "&7Type: &f" + entry.questType().name(),
+                    "&7Started: &f" + availability.formatAt(entry.startedAt()),
+                    "&7Ended: &f" + availability.formatAt(entry.endedAt()),
+                    "&7Giver: &f" + entry.giver(),
+                    "&7Quest ID: &8" + entry.questId()));
+        }
+        inventory.setItem(45, item(Material.ARROW, "&eBack to Player"));
+        if (page > 0) inventory.setItem(48, item(Material.ARROW, "&ePrevious Page"));
+        inventory.setItem(49, item(Material.PAPER, "&fPage " + (page + 1) + "/" + (maxPage + 1), "&7Entries: &f" + entries.size()));
+        if (page < maxPage) inventory.setItem(50, item(Material.ARROW, "&eNext Page"));
+        admin.openInventory(inventory);
+    }
+
+    private void openPlayerCooldowns(Player admin, Player target, int requestedPage) {
+        List<CooldownRow> rows = plugin.getQuestRegistry().all().stream()
+                .map(def -> new CooldownRow(def, availability.cooldownRemaining(target.getUniqueId(), def)))
+                .filter(row -> row.remainingSeconds() > 0L)
+                .sorted(Comparator.comparing(row -> row.definition().id(), String.CASE_INSENSITIVE_ORDER))
+                .toList();
+        int maxPage = Math.max(0, (rows.size() - 1) / PAGE_SIZE);
+        int page = Math.max(0, Math.min(requestedPage, maxPage));
+        Inventory inventory = Bukkit.createInventory(new GuiHolder(View.PLAYER_COOLDOWNS, page, target.getUniqueId().toString()), 54,
+                color("&8Cooldowns &7• &f" + trim(target.getName(), 22)));
+        fill(inventory);
+        int from = page * PAGE_SIZE;
+        int to = Math.min(rows.size(), from + PAGE_SIZE);
+        for (int i = from; i < to; i++) {
+            CooldownRow row = rows.get(i);
+            long readyAt = Instant.now().getEpochSecond() + row.remainingSeconds();
+            inventory.setItem(i - from, item(Material.CLOCK, "&b" + row.definition().title(),
+                    "&7Remaining: &f" + formatRemaining(row.remainingSeconds()),
+                    "&7Ready: &f" + availability.formatAt(readyAt),
+                    "&7Quest ID: &8" + row.definition().id()));
+        }
+        inventory.setItem(45, item(Material.ARROW, "&eBack to Player"));
+        if (page > 0) inventory.setItem(48, item(Material.ARROW, "&ePrevious Page"));
+        inventory.setItem(49, item(Material.PAPER, "&fPage " + (page + 1) + "/" + (maxPage + 1), "&7Active cooldowns: &f" + rows.size()));
+        if (page < maxPage) inventory.setItem(50, item(Material.ARROW, "&eNext Page"));
         admin.openInventory(inventory);
     }
 
@@ -223,6 +293,8 @@ public final class AdminGuiService implements Listener {
             case QUEST_DETAIL -> handleQuestDetail(player, holder.target(), slot);
             case PLAYERS -> handlePlayerList(player, holder.page(), slot);
             case PLAYER_DETAIL -> handlePlayerDetail(player, holder.target(), slot);
+            case PLAYER_HISTORY -> handlePlayerHistory(player, holder.target(), holder.page(), slot);
+            case PLAYER_COOLDOWNS -> handlePlayerCooldowns(player, holder.target(), holder.page(), slot);
         }
     }
 
@@ -298,22 +370,45 @@ public final class AdminGuiService implements Listener {
     }
 
     private void handlePlayerDetail(Player admin, String uuidRaw, int slot) {
-        UUID uuid;
-        try { uuid = UUID.fromString(uuidRaw); }
-        catch (IllegalArgumentException ex) { openPlayers(admin, 0); return; }
-        Player target = Bukkit.getPlayer(uuid);
-        if (target == null) {
-            admin.sendMessage(color("&cPlayer sudah offline."));
-            openPlayers(admin, 0);
-            return;
-        }
+        Player target = onlinePlayer(uuidRaw, admin);
+        if (target == null) return;
         if (slot == 45) { openPlayers(admin, 0); return; }
+        if (slot == 47) { openPlayerHistory(admin, target, 0); return; }
+        if (slot == 48) { openPlayerCooldowns(admin, target, 0); return; }
         if (slot == 49) {
             journals.restorePlayer(target);
             plugin.getJournalUiService().refreshAll(target);
             admin.sendMessage(color("&aJournal aktif milik &f" + target.getName() + " &atelah dipulihkan."));
             openPlayerDetail(admin, target);
         }
+    }
+
+    private void handlePlayerHistory(Player admin, String uuidRaw, int page, int slot) {
+        Player target = onlinePlayer(uuidRaw, admin);
+        if (target == null) return;
+        if (slot == 45) { openPlayerDetail(admin, target); return; }
+        if (slot == 48 && page > 0) { openPlayerHistory(admin, target, page - 1); return; }
+        if (slot == 50) openPlayerHistory(admin, target, page + 1);
+    }
+
+    private void handlePlayerCooldowns(Player admin, String uuidRaw, int page, int slot) {
+        Player target = onlinePlayer(uuidRaw, admin);
+        if (target == null) return;
+        if (slot == 45) { openPlayerDetail(admin, target); return; }
+        if (slot == 48 && page > 0) { openPlayerCooldowns(admin, target, page - 1); return; }
+        if (slot == 50) openPlayerCooldowns(admin, target, page + 1);
+    }
+
+    private Player onlinePlayer(String uuidRaw, Player admin) {
+        UUID uuid;
+        try { uuid = UUID.fromString(uuidRaw); }
+        catch (IllegalArgumentException ex) { openPlayers(admin, 0); return null; }
+        Player target = Bukkit.getPlayer(uuid);
+        if (target == null) {
+            admin.sendMessage(color("&cPlayer sudah offline."));
+            openPlayers(admin, 0);
+        }
+        return target;
     }
 
     private void startLimited(Player player, QuestDefinition def, int hours) {
@@ -362,6 +457,8 @@ public final class AdminGuiService implements Listener {
         lore.add("&7Type: &f" + def.type().name());
         lore.add("&7Objectives: &f" + def.objectives().size());
         lore.add("&7Time Limit: &f" + (def.timeLimitSeconds() <= 0 ? "None" : formatRemaining(def.timeLimitSeconds())));
+        lore.add("&7Abandon: " + (def.abandonAllowed() ? "&aALLOWED" : "&cDISABLED"));
+        lore.add("&7Cooldown: &f" + (def.cooldownSeconds() <= 0 ? "None" : formatRemaining(def.cooldownSeconds())));
         NpcBinding binding = bindings.binding(def.id()).orElse(null);
         lore.add("&7NPC: " + (binding == null ? "&cUNBOUND" : "&a" + binding.npcName()));
         if (def.type() == QuestType.LIMITED) {
@@ -384,6 +481,15 @@ public final class AdminGuiService implements Listener {
         lore.add("&7Exact date/time:");
         lore.add("&f/cqj limited set " + def.id() + " ...");
         return item(Material.CLOCK, "&d&lLimited Schedule", lore.toArray(String[]::new));
+    }
+
+    private Material historyMaterial(TerminalOutcome outcome) {
+        return switch (outcome) {
+            case COMPLETED -> Material.LIME_DYE;
+            case FAILED -> Material.RED_DYE;
+            case EXPIRED -> Material.CLOCK;
+            case ABANDONED -> Material.BARRIER;
+        };
     }
 
     private String limitedStatus(LimitedQuestWindow window) {
