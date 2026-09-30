@@ -2,6 +2,7 @@ package com.menkiestes.cdrquestjournal.listener;
 
 import com.menkiestes.cdrquestjournal.CdrQuestJournalPlugin;
 import com.menkiestes.cdrquestjournal.service.JournalService;
+import com.menkiestes.cdrquestjournal.service.ReliabilityService;
 import com.menkiestes.cdrquestjournal.service.TurnInCoordinator;
 import org.bukkit.Material;
 import org.bukkit.entity.ItemFrame;
@@ -25,11 +26,14 @@ public final class JournalProtectionListener implements Listener {
     private final CdrQuestJournalPlugin plugin;
     private final JournalService service;
     private final TurnInCoordinator turnIns;
+    private final ReliabilityService reliability;
 
-    public JournalProtectionListener(CdrQuestJournalPlugin plugin, JournalService service, TurnInCoordinator turnIns) {
+    public JournalProtectionListener(CdrQuestJournalPlugin plugin, JournalService service,
+                                     TurnInCoordinator turnIns, ReliabilityService reliability) {
         this.plugin = plugin;
         this.service = service;
         this.turnIns = turnIns;
+        this.reliability = reliability;
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
@@ -97,6 +101,7 @@ public final class JournalProtectionListener implements Listener {
 
     private void recoverAndRestore(Player player) {
         turnIns.recoverPlayer(player);
+        reliability.sanitizePlayer(player);
         service.restorePlayer(player);
     }
 
