@@ -4,11 +4,13 @@ import com.menkiestes.cdrquestjournal.CdrQuestJournalPlugin;
 import com.menkiestes.cdrquestjournal.model.AvailabilityResult;
 import com.menkiestes.cdrquestjournal.model.LimitedQuestWindow;
 import com.menkiestes.cdrquestjournal.model.QuestDefinition;
+import com.menkiestes.cdrquestjournal.model.QuestHistoryEntry;
 import com.menkiestes.cdrquestjournal.model.QuestSession;
 import com.menkiestes.cdrquestjournal.model.QuestType;
 import com.menkiestes.cdrquestjournal.model.TerminalOutcome;
 import com.menkiestes.cdrquestjournal.storage.LifecycleStore;
 import com.menkiestes.cdrquestjournal.storage.LimitedScheduleStore;
+import com.menkiestes.cdrquestjournal.storage.QuestHistoryStore;
 import com.menkiestes.cdrquestjournal.storage.StoryProgressionStore;
 
 import java.time.DateTimeException;
@@ -30,6 +32,7 @@ public final class QuestAvailabilityService {
     private final LimitedScheduleStore limitedStore;
     private final LifecycleStore lifecycleStore;
     private final StoryProgressionStore storyStore;
+    private final QuestHistoryStore historyStore;
     private volatile ZoneId zoneId;
     private volatile LocalTime dailyReset;
 
@@ -42,6 +45,7 @@ public final class QuestAvailabilityService {
         this.limitedStore = limitedStore;
         this.lifecycleStore = lifecycleStore;
         this.storyStore = new StoryProgressionStore(plugin);
+        this.historyStore = new QuestHistoryStore(plugin);
         reload();
     }
 
@@ -63,6 +67,7 @@ public final class QuestAvailabilityService {
         }
         limitedStore.reload();
         storyStore.reload();
+        historyStore.reload();
     }
 
     public AvailabilityResult check(UUID playerId, QuestDefinition definition) {
@@ -97,7 +102,8 @@ public final class QuestAvailabilityService {
                     );
                 }
             }
-            return AvailabilityResult.available("STORY", 0L);
+            AvailabilityResult cooldown = cooldownResult(playerId, definition, now);
+            return cooldown == null ? AvailabilityResult.available("STORY", 0L) : cooldown;
         }
 
         if (definition.type() == QuestType.DAILY) {
@@ -110,7 +116,8 @@ public final class QuestAvailabilityService {
                         Map.of("reset", formatAt(cycle.endAt()))
                 );
             }
-            return AvailabilityResult.available(cycle.key(), cycle.endAt());
+            AvailabilityResult cooldown = cooldownResult(playerId, definition, now);
+            return cooldown == null ? AvailabilityResult.available(cycle.key(), cycle.endAt()) : cooldown;
         }
 
         Optional<LimitedQuestWindow> optional = limitedStore.get(definition.id());
@@ -142,7 +149,8 @@ public final class QuestAvailabilityService {
                     Map.of("end", formatAt(window.endAt()))
             );
         }
-        return AvailabilityResult.available(window.cycleKey(), window.endAt());
+        AvailabilityResult cooldown = cooldownResult(playerId, definition, now);
+        return cooldown == null ? AvailabilityResult.available(window.cycleKey(), window.endAt()) : cooldown;
     }
 
     public long personalDeadline(QuestDefinition definition, long acceptedAt) {
@@ -171,15 +179,52 @@ public final class QuestAvailabilityService {
     }
 
     public void recordTerminal(UUID playerId, QuestDefinition definition, QuestSession session, TerminalOutcome outcome) {
+        long endedAt = Instant.now().getEpochSecond();
+        historyStore.record(new QuestHistoryEntry(
+                playerId,
+                definition.id(),
+                definition.type(),
+                session.acceptedAt(),
+                endedAt,
+                outcome,
+                definition.giver(),
+                session.cycleKey()
+        ));
+
         if (definition.type() == QuestType.STORY) {
             if (outcome == TerminalOutcome.COMPLETED && !definition.storyRepeatable()) {
-                storyStore.complete(playerId, definition.id(), Instant.now().getEpochSecond());
+                storyStore.complete(playerId, definition.id(), endedAt);
             }
             return;
         }
         if (definition.type() == QuestType.DAILY || definition.type() == QuestType.LIMITED) {
             lifecycleStore.record(playerId, definition.id(), session.cycleKey(), outcome);
         }
+    }
+
+    public List<QuestHistoryEntry> history(UUID playerId) {
+        return historyStore.history(playerId);
+    }
+
+    public boolean historyCompleted(UUID playerId, String questId) {
+        return historyStore.hasCompleted(playerId, questId);
+    }
+
+    public int historyCount(UUID playerId) {
+        return historyStore.count(playerId);
+    }
+
+    public long cooldownRemaining(UUID playerId, QuestDefinition definition) {
+        if (definition == null || definition.cooldownSeconds() <= 0L) return 0L;
+        long now = Instant.now().getEpochSecond();
+        return historyStore.latest(playerId, definition.id())
+                .map(entry -> Math.max(0L, entry.endedAt() + definition.cooldownSeconds() - now))
+                .orElse(0L);
+    }
+
+    public boolean cooldownReady(UUID playerId, String questId) {
+        QuestDefinition definition = plugin.getQuestRegistry().get(questId).orElse(null);
+        return definition != null && cooldownRemaining(playerId, definition) <= 0L;
     }
 
     public boolean isStoryCompleted(UUID playerId, String questId) {
@@ -235,8 +280,36 @@ public final class QuestAvailabilityService {
         return dailyCycle(ZonedDateTime.now(zoneId)).endAt();
     }
 
+    private AvailabilityResult cooldownResult(UUID playerId, QuestDefinition definition, long now) {
+        if (definition.cooldownSeconds() <= 0L) return null;
+        QuestHistoryEntry latest = historyStore.latest(playerId, definition.id()).orElse(null);
+        if (latest == null) return null;
+        long readyAt = latest.endedAt() + definition.cooldownSeconds();
+        if (now >= readyAt) return null;
+        return AvailabilityResult.denied(
+                "cooldown-active",
+                "COOLDOWN",
+                readyAt,
+                Map.of(
+                        "remaining", formatDuration(readyAt - now),
+                        "ready", formatAt(readyAt)
+                )
+        );
+    }
+
     private String displayQuest(String questId) {
         return plugin.getQuestRegistry().get(questId).map(QuestDefinition::title).orElse(questId);
+    }
+
+    private static String formatDuration(long seconds) {
+        seconds = Math.max(0L, seconds);
+        long days = seconds / 86400L;
+        long hours = (seconds % 86400L) / 3600L;
+        long minutes = (seconds % 3600L) / 60L;
+        long secs = seconds % 60L;
+        if (days > 0) return "%dd %02dh %02dm".formatted(days, hours, minutes);
+        if (hours > 0) return "%dh %02dm %02ds".formatted(hours, minutes, secs);
+        return "%02dm %02ds".formatted(minutes, secs);
     }
 
     private Cycle dailyCycle(ZonedDateTime now) {
