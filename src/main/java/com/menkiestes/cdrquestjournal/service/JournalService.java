@@ -155,6 +155,31 @@ public final class JournalService {
         return availability.check(playerId, definition).available();
     }
 
+    public boolean canAbandon(UUID playerId, String questId) {
+        QuestSession session = getSession(playerId, questId).orElse(null);
+        QuestDefinition definition = registry.get(questId).orElse(null);
+        if (session == null || definition == null || !definition.abandonAllowed()) return false;
+        syncAndExpire(null, definition, session);
+        return session.status() != QuestStatus.EXPIRED;
+    }
+
+    public boolean abandon(Player player, String questId) {
+        QuestSession session = getSession(player.getUniqueId(), questId).orElse(null);
+        QuestDefinition definition = registry.get(questId).orElse(null);
+        if (session == null || definition == null) return false;
+        syncAndExpire(player, definition, session);
+        if (session.status() == QuestStatus.EXPIRED) return false;
+        if (!definition.abandonAllowed()) {
+            messages.send(player, "abandon-disabled", Map.of("quest", definition.title()));
+            return false;
+        }
+        availability.recordTerminal(player.getUniqueId(), definition, session, TerminalOutcome.ABANDONED);
+        removeJournalItems(player, definition.id());
+        removeSession(player.getUniqueId(), definition.id());
+        messages.send(player, "abandoned", Map.of("quest", definition.title()));
+        return true;
+    }
+
     public boolean isReadyForTurnIn(Player player, String questId) {
         QuestSession session = getSession(player.getUniqueId(), questId).orElse(null);
         QuestDefinition definition = registry.get(questId).orElse(null);
