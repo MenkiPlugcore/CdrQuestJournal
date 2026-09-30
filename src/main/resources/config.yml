@@ -1,3 +1,5 @@
+config-version: 1
+
 journal:
   refresh-seconds: 5
   author: "MoonSign S2"
@@ -30,6 +32,14 @@ turn-in:
   minimum-free-slots: 1
   audit-log: true
   required-free-slots-by-quest: {}
+
+reliability:
+  debug: false
+  log-details: false
+  cleanup-duplicate-journals: true
+  cleanup-orphan-journals: true
+  force-crossplay-safe-with-geyser: true
+  orphan-session-policy: "KEEP"
 
 messages:
   prefix: "&8[&6Quest Journal&8] &r"
@@ -72,7 +82,7 @@ messages:
   journal-restored-turnin: "&eQuest Journal &f%quest% &edipulihkan. Klik NPC sekali lagi untuk menyerahkannya."
   legacy-turnin-disabled: "&cAction lama cdrjournal_turnin dinonaktifkan. Gunakan safe transaction prepare/finalize."
   restored: "&aQuest Journal berhasil dipulihkan."
-  reload: "&aKonfigurasi, lifecycle, story progression, quest history/cooldown, NPC binding, transaction recovery, journal UI, dan quest definition berhasil dimuat ulang."
+  reload: "&aKonfigurasi, migration guard, diagnostics, lifecycle, story progression, quest history/cooldown, NPC binding, transaction recovery, journal UI, dan quest definition berhasil dimuat ulang."
   no-active: "&7Player tidak memiliki quest journal aktif."
   inspect-header: "&6Quest aktif milik &f%player%&6:"
   inspect-line: "&8- &f%quest% &8| &7%status% &8| &e%time%"
