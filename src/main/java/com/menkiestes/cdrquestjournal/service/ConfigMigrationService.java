@@ -28,7 +28,11 @@ public final class ConfigMigrationService {
 
     public Result migrate() {
         plugin.reloadConfig();
-        int from = Math.max(0, plugin.getConfig().getInt("config-version", 0));
+        File configFile = new File(plugin.getDataFolder(), "config.yml");
+        YamlConfiguration disk = configFile.exists()
+                ? YamlConfiguration.loadConfiguration(configFile)
+                : new YamlConfiguration();
+        int from = Math.max(0, disk.getInt("config-version", 0));
         int added = 0;
         File backup = null;
 
@@ -43,7 +47,7 @@ public final class ConfigMigrationService {
             boolean needsWrite = from < CURRENT_SCHEMA;
             for (String path : defaults.getKeys(true)) {
                 if (defaults.isConfigurationSection(path)) continue;
-                if (!plugin.getConfig().contains(path)) {
+                if (!disk.contains(path)) {
                     plugin.getConfig().set(path, defaults.get(path));
                     added++;
                     needsWrite = true;
@@ -52,7 +56,6 @@ public final class ConfigMigrationService {
 
             if (!needsWrite) return new Result(from, from, 0, null);
 
-            File configFile = new File(plugin.getDataFolder(), "config.yml");
             if (configFile.exists() && from < CURRENT_SCHEMA) {
                 backup = new File(plugin.getDataFolder(),
                         "config-backup-v" + from + "-" + Instant.now().getEpochSecond() + ".yml");
