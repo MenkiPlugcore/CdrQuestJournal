@@ -1,65 +1,81 @@
 # CdrQuestJournal
 
-Quest Journal bridge for MoonSign S2. BetonQuest remains the quest engine/source of truth; CdrQuestJournal handles physical journals, personal quest lifecycle, Citizens quest-giver binding, safe turn-in transactions, story progression, persistent quest history, cooldowns, crossplay-safe journal presentation, and admin management.
+Quest Journal bridge for MoonSign S2. BetonQuest remains the quest engine/source of truth; CdrQuestJournal handles physical journals, personal quest lifecycle, Citizens quest-giver binding, safe turn-in transactions, story progression, persistent quest history, cooldowns, crossplay-safe journal presentation, admin management, and production reliability guards.
+
+## v0.9.5 — Reliability, Crossplay & Migration Polish
+
+This release focuses on production hardening rather than new gameplay.
+
+### Config migration
+
+`config.yml` now has a schema version:
+
+```yaml
+config-version: 1
+```
+
+Existing installations are migrated automatically. Before a schema migration, the plugin keeps a timestamped backup such as:
+
+```text
+config-backup-v0-1759220000.yml
+```
+
+Missing keys from the bundled config are merged without intentionally replacing existing custom values.
+
+### Startup diagnostics
+
+On enable/reload the console reports:
+
+- Total STORY / DAILY / LIMITED quest definitions.
+- Bound, unresolved, and unbound Citizens NPC quest givers.
+- Persisted and orphaned quest sessions.
+- Pending safe turn-in transactions.
+- STORY chain circular dependencies.
+- Crossplay-safe UI state.
+- Config schema version.
+
+Orphan sessions are kept by default. A removed or temporarily broken quest definition therefore does not automatically destroy player progress.
+
+### Journal sanitation
+
+On join/respawn/reload the plugin can remove:
+
+- Duplicate physical journals for the same active quest.
+- Orphan physical journals with no valid active session/definition.
+
+The authoritative session data is not deleted by this cleanup.
+
+### Crossplay fallback
+
+When Geyser is detected and `reliability.force-crossplay-safe-with-geyser` is enabled, `journal-ui.crossplay-safe` is forced on to avoid unsupported/decorative book formatting for Bedrock players.
+
+```yaml
+reliability:
+  debug: false
+  log-details: false
+  cleanup-duplicate-journals: true
+  cleanup-orphan-journals: true
+  force-crossplay-safe-with-geyser: true
+  orphan-session-policy: "KEEP"
+```
 
 ## v0.9.0 — Quest History, Abandon & Cooldown
 
 All quest progress remains per-player. Party/shared quest state is intentionally not implemented.
 
-### Persistent quest history
+Terminal outcomes are persisted to `plugins/CdrQuestJournal/quest-history.yml` as `COMPLETED`, `FAILED`, `EXPIRED`, or `ABANDONED`. Each history entry stores quest ID/type, start/end time, Quest Giver, cycle/event key, and outcome.
 
-Terminal outcomes are persisted to `plugins/CdrQuestJournal/quest-history.yml`:
-
-- `COMPLETED`
-- `FAILED`
-- `EXPIRED`
-- `ABANDONED`
-
-Each history entry stores quest ID/type, start/end time, Quest Giver, cycle/event key, and outcome. Duplicate terminal callbacks for the same quest attempt are deduplicated.
-
-The Admin GUI player inspector now includes **Quest History** and **Active Cooldowns** views.
-
-### NPC-only abandon
-
-Configure per quest:
+Player-facing abandon remains NPC-based:
 
 ```yaml
 abandon:
   allowed: true
-```
 
-Critical story quests can disable it:
-
-```yaml
-abandon:
-  allowed: false
-```
-
-Player-facing abandon is still NPC-based. Use a BetonQuest conversation confirmation and then:
-
-```yaml
-actions:
-  abandon_lost_cargo: cdrjournal_abandon lost_cargo
-```
-
-`cdrjournal_abandon` validates that the player recently clicked the bound Citizens Quest Giver before closing the session and removing the journal.
-
-Optional reputation/item penalties should remain in the BetonQuest event chain, keeping CdrQuestJournal independent from reward policy.
-
-### Generic cooldown
-
-Configure a cooldown in seconds:
-
-```yaml
 cooldown:
   seconds: 21600
 ```
 
-This example locks the quest for six hours after a terminal outcome. A value of `0` disables cooldown.
-
-Cooldown state is derived from persistent quest history, so restart/reload cannot desynchronize a separate timer file.
-
-### BetonQuest conditions
+BetonQuest hooks include:
 
 ```yaml
 conditions:
@@ -68,9 +84,10 @@ conditions:
   cooldown_ready: cdrjournal_cooldown_ready lost_cargo
   story_done: cdrjournal_story_completed lost_cargo
   available: cdrjournal_available lost_cargo
-```
 
-`cdrjournal_available` includes story prerequisites, one-time story completion, DAILY/LIMITED lifecycle locks, and configured cooldowns.
+actions:
+  abandon_lost_cargo: cdrjournal_abandon lost_cargo
+```
 
 ## Story chain / progression
 
@@ -84,37 +101,13 @@ story:
   requires-any: []
 ```
 
-or branching/converging prerequisites:
-
-```yaml
-story:
-  repeatable: false
-  requires-all: []
-  requires-any:
-    - royal_route
-    - outlaw_route
-```
-
 Story completion is recorded only after the safe turn-in reaches COMMIT.
 
 ## Admin GUI
 
 Run `/cqj` or `/cqj gui` in-game with `cdrquestjournal.admin`.
 
-The dashboard provides:
-
-- Quest Manager for STORY / DAILY / LIMITED definitions.
-- Limited Quest Manager with start/extend/clear controls.
-- Player Sessions with active journals, quest history, active cooldowns, and restore tools.
-- Citizens NPC binding selection.
-- Reload.
-
-Exact LIMITED date/time scheduling remains available through admin commands:
-
-```text
-/cqj limited set <questId> <yyyy-MM-dd_HH:mm> <yyyy-MM-dd_HH:mm>
-/cqj limited end <questId> <yyyy-MM-dd_HH:mm>
-```
+The dashboard provides Quest Manager, Limited Quest Manager, Player Sessions, Quest History, Active Cooldowns, Citizens NPC binding, journal restore tools, and reload.
 
 ## Safe turn-in
 
@@ -131,19 +124,6 @@ actions:
 
 The transaction flow is `PREPARED -> REWARDED -> COMMITTED`, with pending recovery after restart.
 
-## Existing systems
-
-- Per-player STORY / DAILY / LIMITED lifecycle.
-- Persistent objective progress and timers.
-- Protected UUID-bound written journals.
-- Citizens NPC giver binding.
-- Two-phase safe turn-in and pending recovery.
-- Story chains and persistent story completion.
-- Quest history, NPC abandon, and generic cooldown.
-- Crossplay-safe polished written-book UI.
-- Admin GUI.
-- BetonQuest 3.x actions/conditions.
-
 ## Build
 
 Requires JDK 21 and Maven 3.9+.
@@ -152,7 +132,7 @@ Requires JDK 21 and Maven 3.9+.
 mvn clean package
 ```
 
-Output: `target/CdrQuestJournal-0.9.0.jar`.
+Output: `target/CdrQuestJournal-0.9.5.jar`.
 
 Target: Paper 1.21.11, BetonQuest 3.2.0, Citizens API 2.0.44-SNAPSHOT.
 
