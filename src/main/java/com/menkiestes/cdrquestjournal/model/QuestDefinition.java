@@ -6,7 +6,7 @@ import java.util.Map;
 public record QuestDefinition(
         String id,
         String title,
-        String type,
+        QuestType type,
         String giver,
         long timeLimitSeconds,
         List<String> description,
@@ -18,7 +18,7 @@ public record QuestDefinition(
     public QuestDefinition {
         if (id == null || id.isBlank()) throw new IllegalArgumentException("quest id cannot be blank");
         if (title == null || title.isBlank()) title = id;
-        if (type == null || type.isBlank()) type = "STORY";
+        if (type == null) type = QuestType.STORY;
         if (giver == null || giver.isBlank()) giver = "Unknown";
         timeLimitSeconds = Math.max(0L, timeLimitSeconds);
         description = description == null ? List.of() : List.copyOf(description);
