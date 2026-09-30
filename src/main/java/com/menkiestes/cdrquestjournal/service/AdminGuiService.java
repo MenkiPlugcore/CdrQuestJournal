@@ -146,7 +146,7 @@ public final class AdminGuiService implements Listener {
     }
 
     private void openPlayers(Player player, int requestedPage) {
-        List<Player> players = Bukkit.getOnlinePlayers().stream()
+        List<? extends Player> players = Bukkit.getOnlinePlayers().stream()
                 .sorted(Comparator.comparing(Player::getName, String.CASE_INSENSITIVE_ORDER)).toList();
         int maxPage = Math.max(0, (players.size() - 1) / PAGE_SIZE);
         int page = Math.max(0, Math.min(requestedPage, maxPage));
@@ -291,7 +291,7 @@ public final class AdminGuiService implements Listener {
         if (slot == 48 && page > 0) { openPlayers(admin, page - 1); return; }
         if (slot == 50) { openPlayers(admin, page + 1); return; }
         if (slot < 0 || slot >= PAGE_SIZE) return;
-        List<Player> players = Bukkit.getOnlinePlayers().stream()
+        List<? extends Player> players = Bukkit.getOnlinePlayers().stream()
                 .sorted(Comparator.comparing(Player::getName, String.CASE_INSENSITIVE_ORDER)).toList();
         int index = page * PAGE_SIZE + slot;
         if (index < players.size()) openPlayerDetail(admin, players.get(index));
